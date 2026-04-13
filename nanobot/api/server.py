@@ -175,19 +175,37 @@ async def handle_health(request: web.Request) -> web.Response:
 # App factory
 # ---------------------------------------------------------------------------
 
-def create_app(agent_loop, model_name: str = "nanobot", request_timeout: float = 120.0) -> web.Application:
+@web.middleware
+async def api_key_middleware(request: web.Request, handler):
+    """Reject requests without a valid API key when one is configured."""
+    api_key = request.app.get("api_key", "")
+    if api_key and request.path != "/health":
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or auth[7:].strip() != api_key:
+            return _error_json(401, "Invalid or missing API key", "authentication_error")
+    return await handler(request)
+
+
+def create_app(
+    agent_loop,
+    model_name: str = "nanobot",
+    request_timeout: float = 120.0,
+    api_key: str = "",
+) -> web.Application:
     """Create the aiohttp application.
 
     Args:
         agent_loop: An initialized AgentLoop instance.
         model_name: Model name reported in responses.
         request_timeout: Per-request timeout in seconds.
+        api_key: If set, requests must include Authorization: Bearer <key>.
     """
-    app = web.Application()
+    app = web.Application(middlewares=[api_key_middleware])
     app["agent_loop"] = agent_loop
     app["model_name"] = model_name
     app["request_timeout"] = request_timeout
     app["session_locks"] = {}  # per-user locks, keyed by session_key
+    app["api_key"] = api_key
 
     app.router.add_post("/v1/chat/completions", handle_chat_completions)
     app.router.add_get("/v1/models", handle_models)

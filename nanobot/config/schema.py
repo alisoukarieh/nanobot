@@ -147,6 +147,7 @@ class ApiConfig(Base):
     host: str = "127.0.0.1"  # Safer default: local-only bind.
     port: int = 8900
     timeout: float = 120.0  # Per-request timeout in seconds.
+    api_key: str = ""  # If set, requests must include Authorization: Bearer <key>
 
 
 class GatewayConfig(Base):

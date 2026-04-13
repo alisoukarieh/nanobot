@@ -609,7 +609,10 @@ def serve(
         )
     console.print()
 
-    api_app = create_app(agent_loop, model_name=model_name, request_timeout=timeout)
+    api_app = create_app(
+        agent_loop, model_name=model_name, request_timeout=timeout,
+        api_key=runtime_config.api.api_key,
+    )
 
     async def on_startup(_app):
         await agent_loop._connect_mcp()
