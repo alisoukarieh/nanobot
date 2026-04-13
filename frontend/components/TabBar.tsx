@@ -13,6 +13,7 @@ export function TabBar({ agentId, agentName }: TabBarProps) {
   const tabs = [
     { label: "Chat", href: `/agent/${agentId}/chat` },
     { label: "Files", href: `/agent/${agentId}/files` },
+    { label: "MCP", href: `/agent/${agentId}/mcp` },
   ];
 
   return (
