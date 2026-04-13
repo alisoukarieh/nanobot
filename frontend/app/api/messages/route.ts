@@ -19,17 +19,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ messages: [] });
     }
 
-    // Load messages
+    // Load ALL messages then filter by session ID in JS
+    // (PB 0.36 relation filters are unreliable without auth)
     const msgRes = await fetch(
-      `${PB_URL}/api/collections/messages/records?filter=${encodeURIComponent(`session = '${session.id}'`)}&sort=created&perPage=500`,
+      `${PB_URL}/api/collections/messages/records?sort=created&perPage=500`,
     );
     const msgData = await msgRes.json();
-    const messages = (msgData.items || []).map((m: any) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      created: m.created,
-    }));
+    const messages = (msgData.items || [])
+      .filter((m: any) => m.session === session.id)
+      .map((m: any) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        created: m.created,
+      }));
 
     return NextResponse.json({ messages });
   } catch {
