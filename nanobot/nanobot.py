@@ -79,6 +79,7 @@ class Nanobot:
             web_config=config.tools.web,
             exec_config=config.tools.exec,
             restrict_to_workspace=config.tools.restrict_to_workspace,
+            db_config=config.tools.db,
             mcp_servers=config.tools.mcp_servers,
             timezone=defaults.timezone,
             unified_session=defaults.unified_session,

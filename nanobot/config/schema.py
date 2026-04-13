@@ -198,6 +198,14 @@ class MCPServerConfig(Base):
     tool_timeout: int = 30  # seconds before a tool call is cancelled
     enabled_tools: list[str] = Field(default_factory=lambda: ["*"])  # Only register these tools; accepts raw MCP names or wrapped mcp_<server>_<tool> names; ["*"] = all tools; [] = no tools
 
+class PocketBaseConfig(Base):
+    """PocketBase database connection configuration."""
+
+    url: str = "http://localhost:8090"
+    admin_email: str = ""
+    admin_password: str = ""
+
+
 class ToolsConfig(Base):
     """Tools configuration."""
 
@@ -206,6 +214,7 @@ class ToolsConfig(Base):
     restrict_to_workspace: bool = False  # restrict all tool access to workspace directory
     mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)
     ssrf_whitelist: list[str] = Field(default_factory=list)  # CIDR ranges to exempt from SSRF blocking (e.g. ["100.64.0.0/10"] for Tailscale)
+    db: PocketBaseConfig | None = None  # PocketBase config; db tool only registers when present
 
 
 class Config(BaseSettings):

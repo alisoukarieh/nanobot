@@ -144,6 +144,7 @@ class AgentLoop:
         web_config: WebToolsConfig | None = None,
         exec_config: ExecToolConfig | None = None,
         cron_service: CronService | None = None,
+        db_config: "PocketBaseConfig | None" = None,
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
         mcp_servers: dict | None = None,
@@ -154,7 +155,7 @@ class AgentLoop:
         unified_session: bool = False,
         disabled_skills: list[str] | None = None,
     ):
-        from nanobot.config.schema import ExecToolConfig, WebToolsConfig
+        from nanobot.config.schema import ExecToolConfig, PocketBaseConfig, WebToolsConfig
 
         defaults = AgentDefaults()
         self.bus = bus
@@ -180,6 +181,7 @@ class AgentLoop:
         self.web_config = web_config or WebToolsConfig()
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
+        self._db_config = db_config
         self.restrict_to_workspace = restrict_to_workspace
         self._start_time = time.time()
         self._last_usage: dict[str, int] = {}
@@ -280,6 +282,16 @@ class AgentLoop:
             self.tools.register(
                 CronTool(self.cron_service, default_timezone=self.context.timezone or "UTC")
             )
+        if self._db_config:
+            from nanobot.agent.tools.pocketbase import PocketBaseClient
+            from nanobot.agent.tools.db import DbTool
+
+            client = PocketBaseClient(
+                base_url=self._db_config.url,
+                admin_email=self._db_config.admin_email,
+                admin_password=self._db_config.admin_password,
+            )
+            self.tools.register(DbTool(client))
 
     async def _connect_mcp(self) -> None:
         """Connect to configured MCP servers (one-time, lazy)."""

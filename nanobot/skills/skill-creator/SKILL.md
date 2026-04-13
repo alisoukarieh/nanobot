@@ -260,6 +260,20 @@ Example: When building a `big-query` skill to handle queries like "How many user
 
 To establish the skill's contents, analyze each concrete example to create a list of the reusable resources to include: scripts, references, and assets.
 
+### Data-Backed Skills
+
+When the user **explicitly asks** for data to be stored in the database (e.g., "track this in the db",
+"save it to the database", "log this in my data db"), use the `db` tool to create collections and
+manage records. Do NOT use the `db` tool unless the user specifically requests database storage.
+
+**Pattern:**
+1. `db(action="create_collection", collection="calorie_logs", schema="[{\"name\":\"calories\",\"type\":\"number\",\"required\":true}]")`
+2. Write SKILL.md instructions telling the agent to use `db(action="insert", ...)` when the user logs data
+3. Include query patterns so the agent can summarize stored data
+4. The skill should check if the collection exists (via `list_collections`) before creating it
+
+**Supported field types:** text, number, bool, email, url, date, json, select
+
 ### Step 3: Initializing the Skill
 
 At this point, it is time to actually create the skill.

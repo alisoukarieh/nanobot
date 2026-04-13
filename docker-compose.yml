@@ -13,11 +13,30 @@ x-common-config: &common-config
     - seccomp=unconfined
 
 services:
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    container_name: nanobot-pocketbase
+    restart: unless-stopped
+    volumes:
+      - ~/.nanobot/pocketbase:/pb_data
+    ports:
+      - 127.0.0.1:8090:8090
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
   nanobot-gateway:
     container_name: nanobot-gateway
     <<: *common-config
     command: ["gateway"]
     restart: unless-stopped
+    depends_on:
+      - pocketbase
     ports:
       - 18790:18790
     deploy:
@@ -35,6 +54,8 @@ services:
     command:
       ["serve", "--host", "0.0.0.0", "-w", "/home/nanobot/.nanobot/api-workspace"]
     restart: unless-stopped
+    depends_on:
+      - pocketbase
     ports:
       - 127.0.0.1:8900:8900
     deploy:
