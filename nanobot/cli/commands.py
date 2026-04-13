@@ -572,7 +572,15 @@ def serve(
     sync_workspace_templates(runtime_config.workspace_path)
     bus = MessageBus()
     provider = _make_provider(runtime_config)
-    session_manager = SessionManager(runtime_config.workspace_path)
+    pb_client = None
+    if runtime_config.tools.db:
+        from nanobot.agent.tools.pocketbase import PocketBaseClient
+        pb_client = PocketBaseClient(
+            base_url=runtime_config.tools.db.url,
+            admin_email=runtime_config.tools.db.admin_email,
+            admin_password=runtime_config.tools.db.admin_password,
+        )
+    session_manager = SessionManager(runtime_config.workspace_path, pb_client=pb_client)
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,
@@ -659,7 +667,15 @@ def gateway(
     sync_workspace_templates(config.workspace_path)
     bus = MessageBus()
     provider = _make_provider(config)
-    session_manager = SessionManager(config.workspace_path)
+    pb_client = None
+    if config.tools.db:
+        from nanobot.agent.tools.pocketbase import PocketBaseClient
+        pb_client = PocketBaseClient(
+            base_url=config.tools.db.url,
+            admin_email=config.tools.db.admin_email,
+            admin_password=config.tools.db.admin_password,
+        )
+    session_manager = SessionManager(config.workspace_path, pb_client=pb_client)
 
     # Preserve existing single-workspace installs, but keep custom workspaces clean.
     if is_default_workspace(config.workspace_path):
