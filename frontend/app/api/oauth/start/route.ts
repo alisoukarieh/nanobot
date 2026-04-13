@@ -27,8 +27,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Dynamic Client Registration
-    const origin = request.nextUrl.origin;
-    const redirectUri = `${origin}/api/oauth/callback`;
+    // Use x-forwarded-host (set by Traefik) or explicit env var for external URL
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProto = request.headers.get("x-forwarded-proto") || "http";
+    const externalOrigin = process.env.DASHBOARD_URL
+      || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : request.nextUrl.origin);
+    const redirectUri = `${externalOrigin}/api/oauth/callback`;
 
     let clientId: string;
     if (registrationEndpoint) {
