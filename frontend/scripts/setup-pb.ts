@@ -1,10 +1,12 @@
 /**
- * Create the required PocketBase collections for the nanobot dashboard.
+ * Create or update PocketBase collections for the nanobot dashboard.
  *
  * Usage: npx tsx scripts/setup-pb.ts [pocketbase-url]
  *
- * Before running, create a superuser in PocketBase admin UI at http://localhost:8090/_/
- * Then set PB_ADMIN_EMAIL and PB_ADMIN_PASSWORD env vars.
+ * Env vars:
+ *   PB_ADMIN_EMAIL    - superuser email
+ *   PB_ADMIN_PASSWORD - superuser password
+ *   NEXT_PUBLIC_POCKETBASE_URL - fallback URL (default: http://localhost:8090)
  */
 
 const PB_URL = process.argv[2] || process.env.NEXT_PUBLIC_POCKETBASE_URL || "http://localhost:8090";
@@ -24,36 +26,62 @@ async function request(method: string, path: string, token: string, body?: unkno
     const text = await res.text();
     throw new Error(`${method} ${path} failed (${res.status}): ${text}`);
   }
-  return res.status === 204 ? {} : res.json();
+  return res.status === 204 ? null : res.json();
 }
 
 async function auth(): Promise<string> {
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
     throw new Error(
       "Set PB_ADMIN_EMAIL and PB_ADMIN_PASSWORD env vars.\n" +
-      "Create a superuser first at " + PB_URL + "/_/"
+        "Create a superuser first at " + PB_URL + "/_/",
     );
   }
-  const res = await fetch(`${PB_URL}/api/collections/_superusers/auth-with-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identity: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
-  });
+  const res = await fetch(
+    `${PB_URL}/api/collections/_superusers/auth-with-password`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identity: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+    },
+  );
   if (!res.ok) throw new Error(`Auth failed: ${await res.text()}`);
-  const data = await res.json();
-  return data.token;
+  return (await res.json()).token;
 }
 
-async function collectionExists(token: string, name: string): Promise<boolean> {
+async function getCollection(
+  token: string,
+  name: string,
+): Promise<{ id: string; fields: any[] } | null> {
   try {
-    await request("GET", `/api/collections/${name}`, token);
-    return true;
+    return (await request("GET", `/api/collections/${name}`, token)) as any;
   } catch {
-    return false;
+    return null;
   }
 }
 
-const COLLECTIONS = [
+function hasField(fields: any[], name: string): boolean {
+  return fields.some((f: any) => f.name === name);
+}
+
+// ── Collection definitions ──────────────────────────────────────────
+
+interface FieldDef {
+  name: string;
+  type: string;
+  required?: boolean;
+  collectionId?: string;
+  maxSelect?: number;
+}
+
+interface CollectionDef {
+  name: string;
+  type: string;
+  fields: FieldDef[];
+  /** Name of the collection this one's relation fields point to */
+  relationTarget?: string;
+}
+
+const COLLECTIONS: CollectionDef[] = [
   {
     name: "agents",
     type: "base",
@@ -66,21 +94,31 @@ const COLLECTIONS = [
   {
     name: "sessions",
     type: "base",
+    relationTarget: "agents",
     fields: [
-      { name: "agent", type: "relation", required: true, options: { collectionId: "", maxSelect: 1 } },
+      { name: "agent", type: "relation", required: false, collectionId: "", maxSelect: 1 },
+      { name: "key", type: "text", required: true },
       { name: "title", type: "text" },
+      { name: "last_consolidated", type: "number" },
+      { name: "metadata", type: "text" },
     ],
   },
   {
     name: "messages",
     type: "base",
+    relationTarget: "sessions",
     fields: [
-      { name: "session", type: "relation", required: true, options: { collectionId: "", maxSelect: 1 } },
+      { name: "session", type: "relation", required: true, collectionId: "", maxSelect: 1 },
       { name: "role", type: "text", required: true },
       { name: "content", type: "text" },
+      { name: "position", type: "number" },
+      { name: "timestamp", type: "text" },
+      { name: "extra", type: "text" },
     ],
   },
 ];
+
+// ── Main ────────────────────────────────────────────────────────────
 
 async function main() {
   console.log(`Setting up PocketBase at ${PB_URL}...\n`);
@@ -88,39 +126,50 @@ async function main() {
   const token = await auth();
   console.log("Authenticated.\n");
 
-  // Create collections in order (agents first, then sessions, then messages)
   const collectionIds: Record<string, string> = {};
 
   for (const col of COLLECTIONS) {
-    if (await collectionExists(token, col.name)) {
-      console.log(`  [skip] ${col.name} already exists`);
-      // Fetch existing ID for relations
-      const existing = await request("GET", `/api/collections/${col.name}`, token);
-      collectionIds[col.name] = existing.id;
-      continue;
-    }
+    const existing = await getCollection(token, col.name);
 
-    // Resolve relation references
-    const fields = col.fields.map((f: any) => {
-      if (f.type === "relation" && f.options) {
-        const refName = col.name === "sessions" ? "agents" : "sessions";
-        return { ...f, options: { ...f.options, collectionId: collectionIds[refName] || "" } };
+    // Resolve relation collectionId
+    const fields = col.fields.map((f) => {
+      if (f.type === "relation" && col.relationTarget) {
+        return { ...f, collectionId: collectionIds[col.relationTarget] || f.collectionId };
       }
       return f;
     });
 
-    const result = await request("POST", "/api/collections", token, {
-      name: col.name,
-      type: col.type,
-      fields,
-    });
-    collectionIds[col.name] = result.id;
-    console.log(`  [created] ${col.name} (id: ${result.id})`);
+    if (existing) {
+      collectionIds[col.name] = existing.id;
+
+      // Check for missing fields and add them
+      const missing = fields.filter((f) => !hasField(existing.fields, f.name));
+      if (missing.length === 0) {
+        console.log(`  [ok] ${col.name} — all fields present`);
+        continue;
+      }
+
+      // Patch: add missing fields to existing collection
+      const updatedFields = [...existing.fields, ...missing];
+      await request("PATCH", `/api/collections/${existing.id}`, token, {
+        fields: updatedFields,
+      });
+      console.log(
+        `  [updated] ${col.name} — added: ${missing.map((f) => f.name).join(", ")}`,
+      );
+    } else {
+      // Create new collection
+      const result = (await request("POST", "/api/collections", token, {
+        name: col.name,
+        type: col.type,
+        fields,
+      })) as any;
+      collectionIds[col.name] = result.id;
+      console.log(`  [created] ${col.name} (id: ${result.id})`);
+    }
   }
 
   console.log("\nDone. Collections ready.");
-  console.log("\nNext: create an agent record in PocketBase admin UI:");
-  console.log(`  ${PB_URL}/_/#/collections/agents`);
 }
 
 main().catch((e) => {
