@@ -71,8 +71,12 @@ export async function GET(request: NextRequest) {
     await writeConfig(config);
 
     // Redirect to dashboard MCP page with success message
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProto = request.headers.get("x-forwarded-proto") || "http";
+    const baseUrl = process.env.DASHBOARD_URL
+      || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : request.nextUrl.origin);
     return NextResponse.redirect(
-      new URL(`/agent/default/mcp?connected=${encodeURIComponent(serverName)}`, request.url)
+      `${baseUrl}/agent/default/mcp?connected=${encodeURIComponent(serverName)}`
     );
   } catch (e: any) {
     return new NextResponse(`OAuth error: ${e.message}`, { status: 500 });
