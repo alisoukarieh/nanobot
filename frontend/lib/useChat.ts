@@ -51,7 +51,7 @@ export function useChat({ sessionKey }: UseChatOptions) {
       if (sending) return;
 
       const userMsg: Message = {
-        id: crypto.randomUUID(),
+        id: Math.random().toString(36).slice(2) + Date.now().toString(36),
         session: "",
         role: "user",
         content: text,
@@ -76,7 +76,7 @@ export function useChat({ sessionKey }: UseChatOptions) {
         setMessages((msgs) => [
           ...msgs,
           {
-            id: crypto.randomUUID(),
+            id: Math.random().toString(36).slice(2) + Date.now().toString(36),
             session: "",
             role: "assistant",
             content,
@@ -87,7 +87,7 @@ export function useChat({ sessionKey }: UseChatOptions) {
         setMessages((msgs) => [
           ...msgs,
           {
-            id: crypto.randomUUID(),
+            id: Math.random().toString(36).slice(2) + Date.now().toString(36),
             session: "",
             role: "assistant",
             content: "Failed to connect to agent.",
