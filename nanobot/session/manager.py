@@ -183,7 +183,7 @@ class SessionManager:
             while True:
                 msg_result = await self._pb.query_records(
                     "messages",
-                    filter_expr=f"session ?= '{pb_session_id}'",
+                    filter_expr=f"session.id = '{pb_session_id}'",
                     sort="created,position",
                     page=page,
                     per_page=100,
@@ -258,7 +258,7 @@ class SessionManager:
             # (Simple approach; optimize with incremental sync later)
             existing = await self._pb.query_records(
                 "messages",
-                filter_expr=f"session ?= '{session._pb_session_id}'",
+                filter_expr=f"session.id = '{session._pb_session_id}'",
                 per_page=1,
             )
             total_existing = existing.get("totalItems", 0)
@@ -269,7 +269,7 @@ class SessionManager:
                 while True:
                     batch = await self._pb.query_records(
                         "messages",
-                        filter_expr=f"session ?= '{session._pb_session_id}'",
+                        filter_expr=f"session.id = '{session._pb_session_id}'",
                         page=1,  # always page 1 since we're deleting
                         per_page=100,
                     )

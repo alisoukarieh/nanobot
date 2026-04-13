@@ -25,7 +25,7 @@ export function useChat({ sessionKey }: UseChatOptions) {
           .getFirstListItem(`key = '${sessionKey}'`);
 
         const records = await pb.collection("messages").getFullList({
-          filter: `session ?= '${session.id}'`,
+          filter: `session.id = '${session.id}'`,
           sort: "created",
         });
 
