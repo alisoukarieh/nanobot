@@ -22,10 +22,10 @@ export function useChat({ sessionKey }: UseChatOptions) {
       try {
         const session = await pb
           .collection("sessions")
-          .getFirstListItem(`key = "${sessionKey}"`);
+          .getFirstListItem(`key = '${sessionKey}'`);
 
         const records = await pb.collection("messages").getFullList({
-          filter: `session = "${session.id}"`,
+          filter: `session ?= '${session.id}'`,
           sort: "created",
         });
 
