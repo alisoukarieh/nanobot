@@ -176,6 +176,24 @@ async def handle_health(request: web.Request) -> web.Response:
 # ---------------------------------------------------------------------------
 
 @web.middleware
+async def cors_middleware(request: web.Request, handler):
+    """Handle CORS preflight and add headers to all responses."""
+    if request.method == "OPTIONS":
+        return web.Response(
+            status=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                "Access-Control-Max-Age": "86400",
+            },
+        )
+    response = await handler(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
+@web.middleware
 async def api_key_middleware(request: web.Request, handler):
     """Reject requests without a valid API key when one is configured."""
     api_key = request.app.get("api_key", "")
@@ -200,7 +218,7 @@ def create_app(
         request_timeout: Per-request timeout in seconds.
         api_key: If set, requests must include Authorization: Bearer <key>.
     """
-    app = web.Application(middlewares=[api_key_middleware])
+    app = web.Application(middlewares=[cors_middleware, api_key_middleware])
     app["agent_loop"] = agent_loop
     app["model_name"] = model_name
     app["request_timeout"] = request_timeout
