@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 interface McpServer {
   type?: string;
@@ -12,6 +13,8 @@ interface McpServer {
 }
 
 export default function McpPage() {
+  const searchParams = useSearchParams();
+  const justConnected = searchParams.get("connected");
   const [servers, setServers] = useState<Record<string, McpServer>>({});
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -73,6 +76,29 @@ export default function McpPage() {
     setTimeout(() => setRestarting(false), 5000);
   };
 
+  const [connecting, setConnecting] = useState<string | null>(null);
+
+  const handleOAuthConnect = async (serverName: string, serverUrl: string) => {
+    setConnecting(serverName);
+    try {
+      const res = await fetch("/api/oauth/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serverName, serverUrl }),
+      });
+      const data = await res.json();
+      if (data.authUrl) {
+        window.open(data.authUrl, "_blank");
+      } else {
+        alert(data.error || "OAuth discovery failed");
+      }
+    } catch {
+      alert("Failed to start OAuth flow");
+    } finally {
+      setConnecting(null);
+    }
+  };
+
   const entries = Object.entries(servers);
   const hasChanges = true; // simplified — always show restart
 
@@ -106,6 +132,12 @@ export default function McpPage() {
             )}
           </div>
         </div>
+
+        {justConnected && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-[var(--accent-soft)] border border-[var(--accent-glow)] text-[13px] text-[var(--accent)] font-medium">
+            Connected to "{justConnected}". Click "Restart Agent" to apply.
+          </div>
+        )}
 
         {loading && (
           <div className="flex items-center justify-center py-16">
@@ -146,10 +178,19 @@ export default function McpPage() {
                     ) : null}
                   </div>
                 </div>
-                <button onClick={() => handleDelete(serverName)}
-                  className="text-xs text-[var(--text-tertiary)] hover:text-red-500 transition-colors flex-shrink-0 px-2 py-1 rounded-lg hover:bg-red-500/10">
-                  Remove
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {config.url && !config.auth && !(config.headers && Object.keys(config.headers).length > 0) && (
+                    <button onClick={() => handleOAuthConnect(serverName, config.url!)}
+                      disabled={connecting === serverName}
+                      className="text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent-soft)] px-2.5 py-1 rounded-lg transition-all">
+                      {connecting === serverName ? "Connecting..." : "Connect"}
+                    </button>
+                  )}
+                  <button onClick={() => handleDelete(serverName)}
+                    className="text-xs text-[var(--text-tertiary)] hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10">
+                    Remove
+                  </button>
+                </div>
               </div>
             </div>
           ))}
