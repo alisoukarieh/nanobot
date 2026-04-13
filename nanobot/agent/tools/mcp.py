@@ -340,7 +340,8 @@ async def connect_mcp_servers(
                 from mcp_use.client import MCPClient
 
                 client = MCPClient(config={"mcpServers": {name: server_config}})
-                session = await server_stack.enter_async_context(client.create_session(name))
+                session = await client.create_session(name)
+                await server_stack.enter_async_context(session)
                 await session.initialize()
             except ImportError:
                 # Fallback to raw mcp SDK if mcp-use not installed
