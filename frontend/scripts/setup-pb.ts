@@ -167,6 +167,17 @@ async function main() {
       collectionIds[col.name] = result.id;
       console.log(`  [created] ${col.name} (id: ${result.id})`);
     }
+
+    // Set API rules: allow any authenticated user to read/write
+    const colId = collectionIds[col.name];
+    const authRule = '@request.auth.id != ""';
+    await request("PATCH", `/api/collections/${colId}`, token, {
+      listRule: authRule,
+      viewRule: authRule,
+      createRule: authRule,
+      updateRule: authRule,
+      deleteRule: authRule,
+    });
   }
 
   // Ensure users auth collection exists (PB may have it built-in)
