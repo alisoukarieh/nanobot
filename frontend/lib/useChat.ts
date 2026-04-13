@@ -8,10 +8,6 @@ interface UseChatOptions {
   sessionKey: string;
 }
 
-const API_URL =
-  process.env.NEXT_PUBLIC_NANOBOT_API_URL || "http://localhost:8900";
-const API_KEY = process.env.NEXT_PUBLIC_NANOBOT_API_KEY || "";
-
 export function useChat({ sessionKey }: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,12 +20,10 @@ export function useChat({ sessionKey }: UseChatOptions) {
 
     (async () => {
       try {
-        // Find session by key
         const session = await pb
           .collection("sessions")
           .getFirstListItem(`key = "${sessionKey}"`);
 
-        // Load messages for this session
         const records = await pb.collection("messages").getFullList({
           filter: `session = "${session.id}"`,
           sort: "position,created",
@@ -45,7 +39,6 @@ export function useChat({ sessionKey }: UseChatOptions) {
           })),
         );
       } catch {
-        // No session yet — that's fine
         setMessages([]);
       } finally {
         setLoading(false);
@@ -57,7 +50,6 @@ export function useChat({ sessionKey }: UseChatOptions) {
     async (text: string) => {
       if (sending) return;
 
-      // Add user message to UI immediately
       const userMsg: Message = {
         id: crypto.randomUUID(),
         session: "",
@@ -69,16 +61,9 @@ export function useChat({ sessionKey }: UseChatOptions) {
       setSending(true);
 
       try {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (API_KEY) {
-          headers["Authorization"] = `Bearer ${API_KEY}`;
-        }
-
-        const res = await fetch(`${API_URL}/v1/chat/completions`, {
+        const res = await fetch("/api/chat", {
           method: "POST",
-          headers,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: [{ role: "user", content: text }],
           }),
@@ -86,25 +71,29 @@ export function useChat({ sessionKey }: UseChatOptions) {
 
         const data = await res.json();
         const content =
-          data.choices?.[0]?.message?.content || data.error?.message || "";
+          data.choices?.[0]?.message?.content || data.error?.message || "No response";
 
-        const assistantMsg: Message = {
-          id: crypto.randomUUID(),
-          session: "",
-          role: "assistant",
-          content,
-          created: new Date().toISOString(),
-        };
-        setMessages((msgs) => [...msgs, assistantMsg]);
-      } catch (err) {
-        const errorMsg: Message = {
-          id: crypto.randomUUID(),
-          session: "",
-          role: "assistant",
-          content: "Failed to connect to agent.",
-          created: new Date().toISOString(),
-        };
-        setMessages((msgs) => [...msgs, errorMsg]);
+        setMessages((msgs) => [
+          ...msgs,
+          {
+            id: crypto.randomUUID(),
+            session: "",
+            role: "assistant",
+            content,
+            created: new Date().toISOString(),
+          },
+        ]);
+      } catch {
+        setMessages((msgs) => [
+          ...msgs,
+          {
+            id: crypto.randomUUID(),
+            session: "",
+            role: "assistant",
+            content: "Failed to connect to agent.",
+            created: new Date().toISOString(),
+          },
+        ]);
       } finally {
         setSending(false);
       }
