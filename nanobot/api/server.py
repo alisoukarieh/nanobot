@@ -171,6 +171,20 @@ async def handle_health(request: web.Request) -> web.Response:
     return web.json_response({"status": "ok"})
 
 
+async def handle_restart(request: web.Request) -> web.Response:
+    """POST /restart — restart the nanobot process."""
+    import os
+    import sys
+    import asyncio
+
+    async def _do_restart():
+        await asyncio.sleep(0.5)
+        os.execv(sys.executable, [sys.executable, "-m", "nanobot"] + sys.argv[1:])
+
+    asyncio.create_task(_do_restart())
+    return web.json_response({"status": "restarting"})
+
+
 # ---------------------------------------------------------------------------
 # App factory
 # ---------------------------------------------------------------------------
@@ -228,4 +242,5 @@ def create_app(
     app.router.add_post("/v1/chat/completions", handle_chat_completions)
     app.router.add_get("/v1/models", handle_models)
     app.router.add_get("/health", handle_health)
+    app.router.add_post("/restart", handle_restart)
     return app
