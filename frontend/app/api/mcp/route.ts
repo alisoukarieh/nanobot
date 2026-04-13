@@ -24,7 +24,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, type, command, args, url, headers, env } = await request.json();
+    const { name, type, command, args, url, headers, env, auth } = await request.json();
 
     if (!name) {
       return NextResponse.json({ error: "name is required" }, { status: 400 });
@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       }
       entry.url = url;
       if (headers && Object.keys(headers).length) entry.headers = headers;
+      if (auth) entry.auth = auth;
     }
 
     servers[name] = entry;

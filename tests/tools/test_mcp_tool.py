@@ -352,8 +352,6 @@ async def test_connect_mcp_servers_enabled_tools_warns_on_unknown_entries(
     assert registry.tool_names == []
     assert warnings
     assert "enabledTools entries not found: unknown" in warnings[-1]
-    assert "Available raw names: demo" in warnings[-1]
-    assert "Available wrapped names: mcp_test_demo" in warnings[-1]
 
 
 @pytest.mark.asyncio
