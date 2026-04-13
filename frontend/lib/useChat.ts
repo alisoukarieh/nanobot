@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import pb from "./pocketbase";
 import type { Message } from "./types";
 
 interface UseChatOptions {
   sessionKey: string;
+}
+
+function uid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 export function useChat({ sessionKey }: UseChatOptions) {
@@ -13,86 +16,45 @@ export function useChat({ sessionKey }: UseChatOptions) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  // Load existing messages from PocketBase by session key
+  // Load messages from server-side API route
   useEffect(() => {
     if (!sessionKey) return;
     setLoading(true);
-
-    (async () => {
-      try {
-        const session = await pb
-          .collection("sessions")
-          .getFirstListItem(`key = '${sessionKey}'`);
-
-        const records = await pb.collection("messages").getFullList({
-          filter: `session.id = '${session.id}'`,
-          sort: "created",
-        });
-
-        setMessages(
-          records.map((r) => ({
-            id: r.id,
-            session: r.session,
-            role: r.role as Message["role"],
-            content: r.content,
-            created: r.created,
-          })),
-        );
-      } catch {
-        setMessages([]);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetch(`/api/messages?sessionKey=${encodeURIComponent(sessionKey)}`)
+      .then((r) => r.json())
+      .then((data) => setMessages(data.messages || []))
+      .catch(() => setMessages([]))
+      .finally(() => setLoading(false));
   }, [sessionKey]);
 
   const send = useCallback(
     async (text: string) => {
       if (sending) return;
 
-      const userMsg: Message = {
-        id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-        session: "",
-        role: "user",
-        content: text,
-        created: new Date().toISOString(),
-      };
-      setMessages((msgs) => [...msgs, userMsg]);
+      setMessages((msgs) => [
+        ...msgs,
+        { id: uid(), session: "", role: "user", content: text, created: new Date().toISOString() },
+      ]);
       setSending(true);
 
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: [{ role: "user", content: text }],
-          }),
+          body: JSON.stringify({ messages: [{ role: "user", content: text }] }),
         });
-
         const data = await res.json();
         const content =
           data.choices?.[0]?.message?.content || data.error?.message || "No response";
 
         setMessages((msgs) => [
           ...msgs,
-          {
-            id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-            session: "",
-            role: "assistant",
-            content,
-            created: new Date().toISOString(),
-          },
+          { id: uid(), session: "", role: "assistant", content, created: new Date().toISOString() },
         ]);
       } catch {
         setMessages((msgs) => [
           ...msgs,
-          {
-            id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-            session: "",
-            role: "assistant",
-            content: "Failed to connect to agent.",
-            created: new Date().toISOString(),
-          },
+          { id: uid(), session: "", role: "assistant", content: "Failed to connect.", created: new Date().toISOString() },
         ]);
       } finally {
         setSending(false);
