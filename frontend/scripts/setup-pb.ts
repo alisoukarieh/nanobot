@@ -169,6 +169,41 @@ async function main() {
     }
   }
 
+  // Ensure users auth collection exists (PB may have it built-in)
+  const usersCol = await getCollection(token, "users");
+  if (usersCol) {
+    console.log(`  [ok] users — auth collection exists`);
+  } else {
+    await request("POST", "/api/collections", token, {
+      name: "users",
+      type: "auth",
+      fields: [
+        { name: "name", type: "text" },
+      ],
+    });
+    console.log(`  [created] users — auth collection`);
+  }
+
+  // Create a default dashboard user if none exist
+  try {
+    const existing = await request("GET", "/api/collections/users/records?perPage=1", token);
+    if ((existing as any)?.totalItems === 0) {
+      const email = process.env.DASHBOARD_USER_EMAIL || "admin@nanobot.local";
+      const pass = process.env.DASHBOARD_USER_PASSWORD || "nanobot2026";
+      await request("POST", "/api/collections/users/records", token, {
+        email,
+        password: pass,
+        passwordConfirm: pass,
+        name: "Admin",
+      });
+      console.log(`  [created] default user: ${email} / ${pass}`);
+    } else {
+      console.log(`  [ok] users — has existing records`);
+    }
+  } catch (e: any) {
+    console.log(`  [skip] users — ${e.message?.slice(0, 80)}`);
+  }
+
   console.log("\nDone. Collections ready.");
 }
 

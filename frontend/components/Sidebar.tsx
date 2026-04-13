@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useAuth } from "@/lib/auth";
 import type { Agent } from "@/lib/types";
 
 interface SidebarProps {
@@ -9,6 +10,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ agents, activeId }: SidebarProps) {
+  const { logout } = useAuth();
+
   return (
     <aside className="w-56 h-screen flex flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)]">
       <div className="px-5 py-4">
@@ -42,8 +45,14 @@ export function Sidebar({ agents, activeId }: SidebarProps) {
         })}
       </nav>
 
-      <div className="px-5 py-3 border-t border-[var(--border)]">
-        <p className="text-[10px] text-[var(--text-tertiary)]">v0.1.5</p>
+      <div className="px-3 py-3 border-t border-[var(--border)] space-y-2">
+        <button
+          onClick={logout}
+          className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] transition-colors"
+        >
+          Sign out
+        </button>
+        <p className="text-[10px] text-[var(--text-tertiary)] px-2.5">v0.1.5</p>
       </div>
     </aside>
   );

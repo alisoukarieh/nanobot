@@ -5,19 +5,17 @@ import { useChat } from "@/lib/useChat";
 import { ChatMessage } from "./ChatMessage";
 
 interface ChatPanelProps {
-  sessionId: string;
+  sessionKey: string;
 }
 
-export function ChatPanel({ sessionId }: ChatPanelProps) {
-  const { messages, streaming, connected, loading, send } = useChat({
-    sessionId,
-  });
+export function ChatPanel({ sessionKey }: ChatPanelProps) {
+  const { messages, loading, sending, send } = useChat({ sessionKey });
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streaming]);
+  }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +35,7 @@ export function ChatPanel({ sessionId }: ChatPanelProps) {
           </p>
         )}
 
-        {!loading && messages.length === 0 && !streaming && (
+        {!loading && messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <p className="text-[var(--text-tertiary)] text-sm">
               Start a conversation
@@ -49,8 +47,12 @@ export function ChatPanel({ sessionId }: ChatPanelProps) {
           <ChatMessage key={msg.id} role={msg.role} content={msg.content} />
         ))}
 
-        {streaming && (
-          <ChatMessage role="assistant" content={streaming} />
+        {sending && (
+          <div className="flex justify-start">
+            <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-[var(--bg-secondary)] text-[var(--text-tertiary)] text-sm">
+              ...
+            </div>
+          </div>
         )}
 
         <div ref={bottomRef} />
@@ -63,8 +65,8 @@ export function ChatPanel({ sessionId }: ChatPanelProps) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={connected ? "Message..." : "Connecting..."}
-            disabled={!connected}
+            placeholder="Message..."
+            disabled={sending}
             className="
               flex-1 px-4 py-2.5 rounded-xl text-sm
               bg-[var(--bg-secondary)] border border-[var(--border)]
@@ -76,7 +78,7 @@ export function ChatPanel({ sessionId }: ChatPanelProps) {
           />
           <button
             type="submit"
-            disabled={!connected || !input.trim()}
+            disabled={sending || !input.trim()}
             className="
               px-4 py-2.5 rounded-xl text-sm font-medium
               bg-[var(--accent)] text-white
@@ -88,11 +90,6 @@ export function ChatPanel({ sessionId }: ChatPanelProps) {
             Send
           </button>
         </form>
-        {!connected && (
-          <p className="text-[10px] text-[var(--text-tertiary)] mt-1.5 px-1">
-            Not connected to agent
-          </p>
-        )}
       </div>
     </div>
   );
