@@ -8,17 +8,21 @@ interface McpServer {
   args?: string[];
   url?: string;
   headers?: Record<string, string>;
+  auth?: string | Record<string, string>;
 }
 
 export default function McpPage() {
   const [servers, setServers] = useState<Record<string, McpServer>>({});
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState<"stdio" | "sse" | "streamableHttp">("stdio");
   const [command, setCommand] = useState("");
   const [args, setArgs] = useState("");
   const [url, setUrl] = useState("");
+  const [authType, setAuthType] = useState<"none" | "bearer" | "headers">("none");
+  const [bearerToken, setBearerToken] = useState("");
   const [headerKey, setHeaderKey] = useState("");
   const [headerVal, setHeaderVal] = useState("");
   const [headers, setHeaders] = useState<Record<string, string>>({});
@@ -41,15 +45,20 @@ export default function McpPage() {
       body.args = args.split("\n").map((s) => s.trim()).filter(Boolean);
     } else {
       body.url = url;
-      if (Object.keys(headers).length) body.headers = headers;
+      if (authType === "bearer" && bearerToken) {
+        body.auth = bearerToken;
+      } else if (authType === "headers" && Object.keys(headers).length) {
+        body.headers = headers;
+      }
     }
     await fetch("/api/mcp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    setName(""); setCommand(""); setArgs(""); setUrl(""); setHeaders({}); setHeaderKey(""); setHeaderVal("");
-    setAdding(false);
+    setName(""); setCommand(""); setArgs(""); setUrl("");
+    setBearerToken(""); setHeaders({}); setHeaderKey(""); setHeaderVal("");
+    setAuthType("none"); setAdding(false);
     load();
   };
 
@@ -58,7 +67,14 @@ export default function McpPage() {
     load();
   };
 
+  const handleRestart = async () => {
+    setRestarting(true);
+    await fetch("/api/restart", { method: "POST" });
+    setTimeout(() => setRestarting(false), 5000);
+  };
+
   const entries = Object.entries(servers);
+  const hasChanges = true; // simplified — always show restart
 
   return (
     <div className="h-full overflow-y-auto">
@@ -72,14 +88,23 @@ export default function McpPage() {
               Extend your agent with external tools
             </p>
           </div>
-          {!adding && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setAdding(true)}
-              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] transition-all duration-150"
+              onClick={handleRestart}
+              disabled={restarting}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] disabled:opacity-40 transition-all duration-150"
             >
-              Add Server
+              {restarting ? "Restarting..." : "Restart Agent"}
             </button>
-          )}
+            {!adding && (
+              <button
+                onClick={() => setAdding(true)}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[var(--accent)] text-white hover:brightness-110 transition-all duration-150"
+              >
+                Add Server
+              </button>
+            )}
+          </div>
         </div>
 
         {loading && (
@@ -102,33 +127,27 @@ export default function McpPage() {
 
         <div className="space-y-2">
           {entries.map(([serverName, config]) => (
-            <div
-              key={serverName}
-              className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors"
-            >
+            <div key={serverName}
+              className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
-                    {serverName}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-1">
+                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{serverName}</h3>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]">
                       {config.type || (config.command ? "stdio" : "http")}
                     </span>
                     <span className="text-xs text-[var(--text-tertiary)] font-mono truncate">
                       {config.command ? `${config.command} ${config.args?.join(" ") || ""}` : config.url}
                     </span>
-                    {config.headers && Object.keys(config.headers).length > 0 ? (
+                    {(config.auth || (config.headers && Object.keys(config.headers).length > 0)) ? (
                       <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)]">
                         auth
                       </span>
                     ) : null}
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(serverName)}
-                  className="text-xs text-[var(--text-tertiary)] hover:text-red-500 transition-colors flex-shrink-0 px-2 py-1 rounded-lg hover:bg-red-500/10"
-                >
+                <button onClick={() => handleDelete(serverName)}
+                  className="text-xs text-[var(--text-tertiary)] hover:text-red-500 transition-colors flex-shrink-0 px-2 py-1 rounded-lg hover:bg-red-500/10">
                   Remove
                 </button>
               </div>
@@ -137,14 +156,12 @@ export default function McpPage() {
         </div>
 
         {adding && (
-          <form
-            onSubmit={handleAdd}
-            className="mt-4 bg-[var(--bg-elevated)] rounded-2xl p-5 border border-[var(--border)] shadow-[var(--shadow-md)] space-y-4"
-          >
+          <form onSubmit={handleAdd}
+            className="mt-4 bg-[var(--bg-elevated)] rounded-2xl p-5 border border-[var(--border)] shadow-[var(--shadow-md)] space-y-4">
             <div>
               <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">Name</label>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="my-server"
-                className="w-full px-3.5 py-2.5 rounded-xl text-[13px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-25 focus:border-transparent transition-all" />
+                className="w-full px-3.5 py-2.5 rounded-xl text-[13px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">Type</label>
@@ -162,50 +179,70 @@ export default function McpPage() {
                 <div>
                   <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">Command</label>
                   <input type="text" value={command} onChange={(e) => setCommand(e.target.value)} required placeholder="npx"
-                    className="w-full px-3.5 py-2.5 rounded-xl text-[13px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-25 focus:border-transparent transition-all" />
+                    className="w-full px-3.5 py-2.5 rounded-xl text-[13px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">Arguments (one per line)</label>
                   <textarea value={args} onChange={(e) => setArgs(e.target.value)} rows={3} placeholder={"-y\n@modelcontextprotocol/server-name"}
-                    className="w-full px-3.5 py-2.5 rounded-xl text-[13px] font-mono bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-25 focus:border-transparent resize-none transition-all" />
+                    className="w-full px-3.5 py-2.5 rounded-xl text-[13px] font-mono bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] resize-none transition-all" />
                 </div>
               </>
             ) : (
               <>
-              <div>
-                <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">URL</label>
-                <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} required placeholder="https://mcp-server.example.com/sse"
-                  className="w-full px-3.5 py-2.5 rounded-xl text-[13px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">Headers</label>
-                {Object.entries(headers).length > 0 && (
-                  <div className="space-y-1.5 mb-2">
-                    {Object.entries(headers).map(([k, v]) => (
-                      <div key={k} className="flex items-center gap-2 text-[12px] font-mono bg-[var(--bg-secondary)] rounded-lg px-3 py-1.5 border border-[var(--border)]">
-                        <span className="text-[var(--text-secondary)]">{k}:</span>
-                        <span className="text-[var(--text-tertiary)] truncate">{v.slice(0, 8)}{"..."}</span>
-                        <button type="button" onClick={() => { const h = { ...headers }; delete h[k]; setHeaders(h); }}
-                          className="ml-auto text-[var(--text-tertiary)] hover:text-red-400 transition-colors">
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
-                        </button>
-                      </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">URL</label>
+                  <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} required placeholder="https://mcp-server.example.com/mcp"
+                    className="w-full px-3.5 py-2.5 rounded-xl text-[13px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">Authentication</label>
+                  <div className="flex gap-1.5 mb-3">
+                    {(["none", "bearer", "headers"] as const).map((a) => (
+                      <button key={a} type="button" onClick={() => setAuthType(a)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${authType === a ? "bg-[var(--accent)] text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]"}`}>
+                        {a === "none" ? "None (OAuth auto)" : a === "bearer" ? "Bearer Token" : "Custom Headers"}
+                      </button>
                     ))}
                   </div>
-                )}
-                <div className="flex gap-2">
-                  <input type="text" value={headerKey} onChange={(e) => setHeaderKey(e.target.value)} placeholder="Authorization"
-                    className="flex-1 px-3 py-2 rounded-lg text-[12px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
-                  <input type="text" value={headerVal} onChange={(e) => setHeaderVal(e.target.value)} placeholder="Bearer sk-..."
-                    className="flex-1 px-3 py-2 rounded-lg text-[12px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
-                  <button type="button" onClick={() => { if (headerKey.trim()) { setHeaders({ ...headers, [headerKey.trim()]: headerVal }); setHeaderKey(""); setHeaderVal(""); } }}
-                    disabled={!headerKey.trim()}
-                    className="px-3 py-2 rounded-lg text-[11px] font-semibold bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:opacity-30 transition-all">
-                    Add
-                  </button>
+                  {authType === "none" && (
+                    <p className="text-[11px] text-[var(--text-tertiary)] px-0.5">
+                      The agent will auto-discover OAuth if the server supports it. No manual config needed.
+                    </p>
+                  )}
+                  {authType === "bearer" && (
+                    <input type="password" value={bearerToken} onChange={(e) => setBearerToken(e.target.value)} placeholder="sk-..."
+                      className="w-full px-3.5 py-2.5 rounded-xl text-[13px] font-mono bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
+                  )}
+                  {authType === "headers" && (
+                    <>
+                      {Object.entries(headers).length > 0 && (
+                        <div className="space-y-1.5 mb-2">
+                          {Object.entries(headers).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-2 text-[12px] font-mono bg-[var(--bg-secondary)] rounded-lg px-3 py-1.5 border border-[var(--border)]">
+                              <span className="text-[var(--text-secondary)]">{k}:</span>
+                              <span className="text-[var(--text-tertiary)] truncate">{v.slice(0, 8)}...</span>
+                              <button type="button" onClick={() => { const h = { ...headers }; delete h[k]; setHeaders(h); }}
+                                className="ml-auto text-[var(--text-tertiary)] hover:text-red-400 transition-colors">
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <input type="text" value={headerKey} onChange={(e) => setHeaderKey(e.target.value)} placeholder="Authorization"
+                          className="flex-1 px-3 py-2 rounded-lg text-[12px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
+                        <input type="text" value={headerVal} onChange={(e) => setHeaderVal(e.target.value)} placeholder="Bearer sk-..."
+                          className="flex-1 px-3 py-2 rounded-lg text-[12px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
+                        <button type="button" onClick={() => { if (headerKey.trim()) { setHeaders({ ...headers, [headerKey.trim()]: headerVal }); setHeaderKey(""); setHeaderVal(""); } }}
+                          disabled={!headerKey.trim()}
+                          className="px-3 py-2 rounded-lg text-[11px] font-semibold bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:opacity-30 transition-all">
+                          Add
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <p className="text-[10px] text-[var(--text-tertiary)] mt-1.5 px-0.5">Add authentication headers like Authorization, X-API-Key, etc.</p>
-              </div>
               </>
             )}
             <div className="flex justify-end gap-2 pt-1">
@@ -214,15 +251,15 @@ export default function McpPage() {
                 Cancel
               </button>
               <button type="submit"
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] transition-all">
-                Add
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[var(--accent)] text-white hover:brightness-110 transition-all">
+                Add Server
               </button>
             </div>
           </form>
         )}
 
         <p className="text-[10px] text-[var(--text-tertiary)] mt-8">
-          Changes take effect after agent restart.
+          Click "Restart Agent" after making changes to apply them.
         </p>
       </div>
     </div>
