@@ -22,64 +22,65 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
     setTheme(order[(idx + 1) % 3]);
   };
 
-  const themeLabel = theme === "system" ? "Auto" : theme === "dark" ? "Dark" : "Light";
+  const themeIcon = theme === "dark" ? (
+    <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.75 2.75l1.06 1.06M9.19 9.19l1.06 1.06M2.75 11.25l1.06-1.06M9.19 4.81l1.06-1.06M9.5 7a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+  ) : theme === "light" ? (
+    <path d="M11.5 8a4.5 4.5 0 01-6-6 4.5 4.5 0 106 6z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+  ) : (
+    <><path d="M2 7a5 5 0 1010 0A5 5 0 002 7z" stroke="currentColor" strokeWidth="1.2"/><path d="M7 2v10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></>
+  );
 
   return (
     <>
-      {/* Mobile overlay */}
       {open && (
-        <div
-          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-sm" onClick={onClose} />
       )}
-
-      <aside
-        className={`
-          fixed lg:static inset-y-0 left-0 z-50
-          w-64 lg:w-56 h-screen flex flex-col
-          border-r border-[var(--border)] bg-[var(--sidebar-bg)]
-          transition-transform duration-200 ease-out
-          ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-        `}
-      >
-        <div className="px-5 py-5 flex items-center justify-between">
-          <h1 className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] uppercase">
-            nanobot
-          </h1>
-          <button
-            onClick={onClose}
-            className="lg:hidden w-6 h-6 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M11 3L3 11M3 3l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50
+        w-[260px] lg:w-[220px] h-screen flex flex-col
+        border-r border-[var(--border)] bg-[var(--sidebar-bg)] glass relative noise
+        transition-transform duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]
+        ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+      `}>
+        <div className="px-5 pt-6 pb-4 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center">
+              <span className="text-white text-[11px] font-bold tracking-tight">nb</span>
+            </div>
+            <span className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.02em]">
+              nanobot
+            </span>
+          </div>
+          <button onClick={onClose} className="lg:hidden w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-all">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11 3L3 11M3 3l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 space-y-0.5">
-          {agents.map((agent) => {
+        <div className="px-4 pb-2 relative z-10">
+          <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-1">Agents</p>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 space-y-0.5 relative z-10">
+          {agents.map((agent, i) => {
             const isActive = agent.id === activeId;
             return (
               <Link
                 key={agent.id}
                 href={`/agent/${agent.id}/chat`}
                 onClick={onClose}
+                style={{ animationDelay: `${i * 30}ms` }}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] transition-all duration-150
-                  ${
-                    isActive
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+                  animate-in flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13px] transition-all duration-200
+                  ${isActive
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium shadow-[inset_0_0_0_1px_var(--accent-glow)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 hover:text-[var(--text-primary)]"
                   }
                 `}
               >
-                <span
-                  className={`
-                    w-8 h-8 rounded-[10px] flex items-center justify-center text-xs font-semibold flex-shrink-0
-                    ${isActive ? "bg-[var(--accent)] text-white" : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)]"}
-                  `}
-                >
+                <span className={`
+                  w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-bold flex-shrink-0 transition-all duration-200
+                  ${isActive ? "bg-[var(--accent)] text-white shadow-[var(--shadow-sm)]" : "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]"}
+                `}>
                   {agent.name.charAt(0).toUpperCase()}
                 </span>
                 <span className="truncate">{agent.name}</span>
@@ -88,27 +89,13 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
           })}
         </nav>
 
-        <div className="px-3 py-3 border-t border-[var(--border)] space-y-1">
-          <button
-            onClick={nextTheme}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-[10px] text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-60">
-              {theme === "dark" ? (
-                <path d="M7 1.5v1M7 11.5v1M1.5 7h1M11.5 7h1M3.11 3.11l.71.71M10.18 10.18l.71.71M3.11 10.89l.71-.71M10.18 3.82l.71-.71M10 7a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              ) : theme === "light" ? (
-                <path d="M12.5 8.5a5.5 5.5 0 01-7-7 5.5 5.5 0 107 7z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              ) : (
-                <path d="M2 7a5 5 0 1010 0A5 5 0 002 7zM7 2v10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              )}
-            </svg>
-            {themeLabel}
+        <div className="px-3 py-3 border-t border-[var(--border)] space-y-0.5 relative z-10">
+          <button onClick={nextTheme} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 transition-all">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-50">{themeIcon}</svg>
+            {theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light"}
           </button>
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-[10px] text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-60">
+          <button onClick={logout} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 transition-all">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-50">
               <path d="M5.5 12.5H3a1 1 0 01-1-1v-9a1 1 0 011-1h2.5M9.5 10l3-3-3-3M12.5 7H5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             Sign out
