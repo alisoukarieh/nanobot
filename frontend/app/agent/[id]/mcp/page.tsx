@@ -7,6 +7,7 @@ interface McpServer {
   command?: string;
   args?: string[];
   url?: string;
+  headers?: Record<string, string>;
 }
 
 export default function McpPage() {
@@ -18,6 +19,9 @@ export default function McpPage() {
   const [command, setCommand] = useState("");
   const [args, setArgs] = useState("");
   const [url, setUrl] = useState("");
+  const [headerKey, setHeaderKey] = useState("");
+  const [headerVal, setHeaderVal] = useState("");
+  const [headers, setHeaders] = useState<Record<string, string>>({});
 
   const load = useCallback(() => {
     fetch("/api/mcp")
@@ -37,13 +41,14 @@ export default function McpPage() {
       body.args = args.split("\n").map((s) => s.trim()).filter(Boolean);
     } else {
       body.url = url;
+      if (Object.keys(headers).length) body.headers = headers;
     }
     await fetch("/api/mcp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    setName(""); setCommand(""); setArgs(""); setUrl("");
+    setName(""); setCommand(""); setArgs(""); setUrl(""); setHeaders({}); setHeaderKey(""); setHeaderVal("");
     setAdding(false);
     load();
   };
@@ -113,6 +118,11 @@ export default function McpPage() {
                     <span className="text-xs text-[var(--text-tertiary)] font-mono truncate">
                       {config.command ? `${config.command} ${config.args?.join(" ") || ""}` : config.url}
                     </span>
+                    {config.headers && Object.keys(config.headers).length > 0 ? (
+                      <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)]">
+                        auth
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <button
@@ -161,11 +171,42 @@ export default function McpPage() {
                 </div>
               </>
             ) : (
+              <>
               <div>
                 <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">URL</label>
                 <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} required placeholder="https://mcp-server.example.com/sse"
-                  className="w-full px-3.5 py-2.5 rounded-xl text-[13px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-25 focus:border-transparent transition-all" />
+                  className="w-full px-3.5 py-2.5 rounded-xl text-[13px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
               </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[var(--text-tertiary)] mb-1.5 uppercase tracking-wider">Headers</label>
+                {Object.entries(headers).length > 0 && (
+                  <div className="space-y-1.5 mb-2">
+                    {Object.entries(headers).map(([k, v]) => (
+                      <div key={k} className="flex items-center gap-2 text-[12px] font-mono bg-[var(--bg-secondary)] rounded-lg px-3 py-1.5 border border-[var(--border)]">
+                        <span className="text-[var(--text-secondary)]">{k}:</span>
+                        <span className="text-[var(--text-tertiary)] truncate">{v.slice(0, 8)}{"..."}</span>
+                        <button type="button" onClick={() => { const h = { ...headers }; delete h[k]; setHeaders(h); }}
+                          className="ml-auto text-[var(--text-tertiary)] hover:text-red-400 transition-colors">
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input type="text" value={headerKey} onChange={(e) => setHeaderKey(e.target.value)} placeholder="Authorization"
+                    className="flex-1 px-3 py-2 rounded-lg text-[12px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
+                  <input type="text" value={headerVal} onChange={(e) => setHeaderVal(e.target.value)} placeholder="Bearer sk-..."
+                    className="flex-1 px-3 py-2 rounded-lg text-[12px] bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--shadow-glow)] transition-all" />
+                  <button type="button" onClick={() => { if (headerKey.trim()) { setHeaders({ ...headers, [headerKey.trim()]: headerVal }); setHeaderKey(""); setHeaderVal(""); } }}
+                    disabled={!headerKey.trim()}
+                    className="px-3 py-2 rounded-lg text-[11px] font-semibold bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:opacity-30 transition-all">
+                    Add
+                  </button>
+                </div>
+                <p className="text-[10px] text-[var(--text-tertiary)] mt-1.5 px-0.5">Add authentication headers like Authorization, X-API-Key, etc.</p>
+              </div>
+              </>
             )}
             <div className="flex justify-end gap-2 pt-1">
               <button type="button" onClick={() => setAdding(false)}
