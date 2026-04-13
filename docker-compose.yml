@@ -67,6 +67,32 @@ services:
           cpus: "0.25"
           memory: 256M
 
+  dashboard:
+    container_name: nanobot-dashboard
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - pocketbase
+      - nanobot-gateway
+    ports:
+      - 3000:3000
+    environment:
+      # NEXT_PUBLIC_ vars are baked into the JS bundle at build time.
+      # These must be reachable from the USER'S BROWSER, not from inside Docker.
+      # Override at runtime if your host/ports differ.
+      - NEXT_PUBLIC_POCKETBASE_URL=http://localhost:8090
+      - NEXT_PUBLIC_NANOBOT_WS_URL=ws://localhost:8765
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
   nanobot-cli:
     <<: *common-config
     profiles:
