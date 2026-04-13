@@ -27,9 +27,13 @@ def _make_loop(tmp_path):
     provider.get_default_model.return_value = "test-model"
 
     with patch("nanobot.agent.loop.ContextBuilder"), \
-         patch("nanobot.agent.loop.SessionManager"), \
+         patch("nanobot.agent.loop.SessionManager") as MockSessMgr, \
          patch("nanobot.agent.loop.SubagentManager") as MockSubMgr:
         MockSubMgr.return_value.cancel_by_session = AsyncMock(return_value=0)
+        mock_sessions = MockSessMgr.return_value
+        mock_sessions.get_or_create = AsyncMock(return_value=MagicMock())
+        mock_sessions.save = AsyncMock()
+        mock_sessions.list_sessions = AsyncMock(return_value=[])
         loop = AgentLoop(bus=bus, provider=provider, workspace=tmp_path)
     return loop
 
@@ -948,7 +952,7 @@ async def test_next_turn_after_llm_error_keeps_turn_boundary(tmp_path):
     assert first is not None
     assert first.content == "429 rate limit exceeded"
 
-    session = loop.sessions.get_or_create("cli:test")
+    session = await loop.sessions.get_or_create("cli:test")
     assert [
         {key: value for key, value in message.items() if key in {"role", "content"}}
         for message in session.messages
@@ -1392,7 +1396,7 @@ async def test_backfill_repairs_model_context_without_shifting_save_turn_boundar
     loop.tools.get_definitions = MagicMock(return_value=[])
     loop.consolidator.maybe_consolidate_by_tokens = AsyncMock(return_value=False)  # type: ignore[method-assign]
 
-    session = loop.sessions.get_or_create("cli:test")
+    session = await loop.sessions.get_or_create("cli:test")
     session.messages = [
         {"role": "user", "content": "old user", "timestamp": "2026-01-01T00:00:00"},
         {
@@ -1409,7 +1413,7 @@ async def test_backfill_repairs_model_context_without_shifting_save_turn_boundar
         },
         {"role": "assistant", "content": "old tail", "timestamp": "2026-01-01T00:00:02"},
     ]
-    loop.sessions.save(session)
+    await loop.sessions.save(session)
 
     result = await loop._process_message(
         InboundMessage(channel="cli", sender_id="user", chat_id="test", content="new prompt")
@@ -1427,7 +1431,7 @@ async def test_backfill_repairs_model_context_without_shifting_save_turn_boundar
     assert len(synthetic) == 1
     assert synthetic[0]["content"] == _BACKFILL_CONTENT
 
-    session_after = loop.sessions.get_or_create("cli:test")
+    session_after = await loop.sessions.get_or_create("cli:test")
     assert [
         {
             key: value

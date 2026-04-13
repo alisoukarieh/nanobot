@@ -56,8 +56,8 @@ class AutoCompact:
         cut = len(tail) - len(kept)
         return tail[:cut], kept
 
-    def check_expired(self, schedule_background: Callable[[Coroutine], None]) -> None:
-        for info in self.sessions.list_sessions():
+    async def check_expired(self, schedule_background: Callable[[Coroutine], None]) -> None:
+        for info in await self.sessions.list_sessions():
             key = info.get("key", "")
             if key and key not in self._archiving and self._is_expired(info.get("updated_at")):
                 self._archiving.add(key)
@@ -67,12 +67,12 @@ class AutoCompact:
     async def _archive(self, key: str) -> None:
         try:
             self.sessions.invalidate(key)
-            session = self.sessions.get_or_create(key)
+            session = await self.sessions.get_or_create(key)
             archive_msgs, kept_msgs = self._split_unconsolidated(session)
             if not archive_msgs and not kept_msgs:
                 logger.debug("Auto-compact: skipping {}, no un-consolidated messages", key)
                 session.updated_at = datetime.now()
-                self.sessions.save(session)
+                await self.sessions.save(session)
                 return
 
             last_active = session.updated_at
@@ -85,7 +85,7 @@ class AutoCompact:
             session.messages = kept_msgs
             session.last_consolidated = 0
             session.updated_at = datetime.now()
-            self.sessions.save(session)
+            await self.sessions.save(session)
             logger.info(
                 "Auto-compact: archived {} (archived={}, kept={}, summary={})",
                 key,
@@ -98,10 +98,10 @@ class AutoCompact:
         finally:
             self._archiving.discard(key)
 
-    def prepare_session(self, session: Session, key: str) -> tuple[Session, str | None]:
+    async def prepare_session(self, session: Session, key: str) -> tuple[Session, str | None]:
         if key in self._archiving or self._is_expired(session.updated_at):
             logger.info("Auto-compact: reloading session {} (archiving={})", key, key in self._archiving)
-            session = self.sessions.get_or_create(key)
+            session = await self.sessions.get_or_create(key)
         # Hot path: summary from in-memory dict (process hasn't restarted).
         # Also clean metadata copy so stale _last_summary never leaks to disk.
         entry = self._summaries.pop(key, None)
@@ -110,6 +110,6 @@ class AutoCompact:
             return session, self._format_summary(entry[0], entry[1])
         if "_last_summary" in session.metadata:
             meta = session.metadata.pop("_last_summary")
-            self.sessions.save(session)
+            await self.sessions.save(session)
             return session, self._format_summary(meta["text"], datetime.fromisoformat(meta["last_active"]))
         return session, None

@@ -52,7 +52,7 @@ async def cmd_restart(ctx: CommandContext) -> OutboundMessage:
 async def cmd_status(ctx: CommandContext) -> OutboundMessage:
     """Build an outbound status message for a session."""
     loop = ctx.loop
-    session = ctx.session or loop.sessions.get_or_create(ctx.key)
+    session = ctx.session or await loop.sessions.get_or_create(ctx.key)
     ctx_est = 0
     try:
         ctx_est, _ = loop.consolidator.estimate_session_prompt_tokens(session)
@@ -92,10 +92,10 @@ async def cmd_status(ctx: CommandContext) -> OutboundMessage:
 async def cmd_new(ctx: CommandContext) -> OutboundMessage:
     """Start a fresh session."""
     loop = ctx.loop
-    session = ctx.session or loop.sessions.get_or_create(ctx.key)
+    session = ctx.session or await loop.sessions.get_or_create(ctx.key)
     snapshot = session.messages[session.last_consolidated:]
     session.clear()
-    loop.sessions.save(session)
+    await loop.sessions.save(session)
     loop.sessions.invalidate(session.key)
     if snapshot:
         loop._schedule_background(loop.consolidator.archive(snapshot))

@@ -22,7 +22,7 @@ def mock_provider():
 @pytest.fixture
 def consolidator(store, mock_provider):
     sessions = MagicMock()
-    sessions.save = MagicMock()
+    sessions.save = AsyncMock()
     return Consolidator(
         store=store,
         provider=mock_provider,

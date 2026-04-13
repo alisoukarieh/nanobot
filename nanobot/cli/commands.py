@@ -789,9 +789,9 @@ def gateway(
 
         # Keep a small tail of heartbeat history so the loop stays bounded
         # without losing all short-term context between runs.
-        session = agent.sessions.get_or_create("heartbeat")
+        session = await agent.sessions.get_or_create("heartbeat")
         session.retain_recent_legal_suffix(hb_cfg.keep_recent_messages)
-        agent.sessions.save(session)
+        await agent.sessions.save(session)
 
         return resp.content if resp else ""
 

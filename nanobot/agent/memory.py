@@ -536,7 +536,7 @@ class Consolidator:
                 if not await self.archive(chunk):
                     return
                 session.last_consolidated = end_idx
-                self.sessions.save(session)
+                await self.sessions.save(session)
 
                 try:
                     estimated, source = self.estimate_session_prompt_tokens(session)

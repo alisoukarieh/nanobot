@@ -189,6 +189,13 @@ class AgentLoop:
 
         self.context = ContextBuilder(workspace, timezone=timezone, disabled_skills=disabled_skills)
         self.sessions = session_manager or SessionManager(workspace)
+        if not session_manager and self._db_config:
+            from nanobot.agent.tools.pocketbase import PocketBaseClient
+            self.sessions._pb = PocketBaseClient(
+                base_url=self._db_config.url,
+                admin_email=self._db_config.admin_email,
+                admin_password=self._db_config.admin_password,
+            )
         self.tools = ToolRegistry()
         self.runner = AgentRunner(provider)
         self.subagents = SubagentManager(
@@ -382,7 +389,7 @@ class AgentLoop:
         async def _checkpoint(payload: dict[str, Any]) -> None:
             if session is None:
                 return
-            self._set_runtime_checkpoint(session, payload)
+            await self._set_runtime_checkpoint(session, payload)
 
         async def _drain_pending(*, limit: int = _MAX_INJECTIONS_PER_TURN) -> list[dict[str, Any]]:
             """Non-blocking drain of follow-up messages from the pending queue."""
@@ -445,7 +452,7 @@ class AgentLoop:
             try:
                 msg = await asyncio.wait_for(self.bus.consume_inbound(), timeout=1.0)
             except asyncio.TimeoutError:
-                self.auto_compact.check_expired(self._schedule_background)
+                await self.auto_compact.check_expired(self._schedule_background)
                 continue
             except asyncio.CancelledError:
                 # Preserve real task cancellation so shutdown can complete cleanly.
@@ -627,11 +634,11 @@ class AgentLoop:
             )
             logger.info("Processing system message from {}", msg.sender_id)
             key = f"{channel}:{chat_id}"
-            session = self.sessions.get_or_create(key)
+            session = await self.sessions.get_or_create(key)
             if self._restore_runtime_checkpoint(session):
-                self.sessions.save(session)
+                await self.sessions.save(session)
 
-            session, pending = self.auto_compact.prepare_session(session, key)
+            session, pending = await self.auto_compact.prepare_session(session, key)
 
             await self.consolidator.maybe_consolidate_by_tokens(session)
             self._set_tool_context(channel, chat_id, msg.metadata.get("message_id"))
@@ -650,7 +657,7 @@ class AgentLoop:
             )
             self._save_turn(session, all_msgs, 1 + len(history))
             self._clear_runtime_checkpoint(session)
-            self.sessions.save(session)
+            await self.sessions.save(session)
             self._schedule_background(self.consolidator.maybe_consolidate_by_tokens(session))
             return OutboundMessage(
                 channel=channel,
@@ -662,11 +669,11 @@ class AgentLoop:
         logger.info("Processing message from {}:{}: {}", msg.channel, msg.sender_id, preview)
 
         key = session_key or msg.session_key
-        session = self.sessions.get_or_create(key)
+        session = await self.sessions.get_or_create(key)
         if self._restore_runtime_checkpoint(session):
-            self.sessions.save(session)
+            await self.sessions.save(session)
 
-        session, pending = self.auto_compact.prepare_session(session, key)
+        session, pending = await self.auto_compact.prepare_session(session, key)
 
         # Slash commands
         raw = msg.content.strip()
@@ -722,7 +729,7 @@ class AgentLoop:
 
         self._save_turn(session, all_msgs, 1 + len(history))
         self._clear_runtime_checkpoint(session)
-        self.sessions.save(session)
+        await self.sessions.save(session)
         self._schedule_background(self.consolidator.maybe_consolidate_by_tokens(session))
 
         # When follow-up messages were injected mid-turn, a later natural
@@ -833,10 +840,10 @@ class AgentLoop:
             session.messages.append(entry)
         session.updated_at = datetime.now()
 
-    def _set_runtime_checkpoint(self, session: Session, payload: dict[str, Any]) -> None:
+    async def _set_runtime_checkpoint(self, session: Session, payload: dict[str, Any]) -> None:
         """Persist the latest in-flight turn state into session metadata."""
         session.metadata[self._RUNTIME_CHECKPOINT_KEY] = payload
-        self.sessions.save(session)
+        await self.sessions.save(session)
 
     def _clear_runtime_checkpoint(self, session: Session) -> None:
         if self._RUNTIME_CHECKPOINT_KEY in session.metadata:

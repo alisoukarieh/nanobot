@@ -229,11 +229,11 @@ class TestCmdNewUnifiedSession:
         sessions = SessionManager(tmp_path)
 
         # Pre-populate the shared session with some messages
-        shared = sessions.get_or_create("unified:default")
+        shared = await sessions.get_or_create("unified:default")
         shared.add_message("user", "hello from telegram")
         shared.add_message("assistant", "hi there")
-        sessions.save(shared)
-        assert len(sessions.get_or_create("unified:default").messages) == 2
+        await sessions.save(shared)
+        assert len((await sessions.get_or_create("unified:default")).messages) == 2
 
         # _schedule_background is a *sync* method that schedules a coroutine via
         # asyncio.create_task().  Mirror that exactly so the coroutine is consumed
@@ -255,7 +255,7 @@ class TestCmdNewUnifiedSession:
         assert "New session started" in result.content
         # Invalidate cache and reload from disk to confirm persistence
         sessions.invalidate("unified:default")
-        reloaded = sessions.get_or_create("unified:default")
+        reloaded = await sessions.get_or_create("unified:default")
         assert reloaded.messages == []
 
     @pytest.mark.asyncio
@@ -263,13 +263,13 @@ class TestCmdNewUnifiedSession:
         """Clearing unified:default must not touch other sessions on disk."""
         sessions = SessionManager(tmp_path)
 
-        other = sessions.get_or_create("discord:999")
+        other = await sessions.get_or_create("discord:999")
         other.add_message("user", "discord message")
-        sessions.save(other)
+        await sessions.save(other)
 
-        shared = sessions.get_or_create("unified:default")
+        shared = await sessions.get_or_create("unified:default")
         shared.add_message("user", "shared message")
-        sessions.save(shared)
+        await sessions.save(shared)
 
         loop = SimpleNamespace(
             sessions=sessions,
@@ -286,8 +286,8 @@ class TestCmdNewUnifiedSession:
 
         sessions.invalidate("unified:default")
         sessions.invalidate("discord:999")
-        assert sessions.get_or_create("unified:default").messages == []
-        assert len(sessions.get_or_create("discord:999").messages) == 1
+        assert (await sessions.get_or_create("unified:default")).messages == []
+        assert len((await sessions.get_or_create("discord:999")).messages) == 1
 
 
 # ---------------------------------------------------------------------------
