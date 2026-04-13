@@ -48,14 +48,18 @@ export default function FilesPage() {
   if (!agent) {
     return (
       <div className="h-full flex items-center justify-center">
-        <p className="text-[var(--text-tertiary)] text-sm">Loading...</p>
+        <div className="w-5 h-5 border-2 border-[var(--border-strong)] border-t-[var(--accent)] rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full">
-      <div className="w-56 border-r border-[var(--border)] flex-shrink-0">
+    <div className="flex h-full flex-col sm:flex-row">
+      <div className={`
+        ${selectedFile ? "hidden sm:block" : "block"}
+        w-full sm:w-56 border-b sm:border-b-0 sm:border-r border-[var(--border)] flex-shrink-0
+        ${!selectedFile ? "flex-1 sm:flex-initial" : ""}
+      `}>
         <FileTree
           entries={entries}
           activePath={selectedFile}
@@ -64,7 +68,17 @@ export default function FilesPage() {
           currentPath={currentPath}
         />
       </div>
-      <FileEditor filePath={selectedFile} workspacePath={agent.workspace_path} />
+      <div className={`${selectedFile ? "block" : "hidden sm:block"} flex-1 flex flex-col min-w-0`}>
+        {selectedFile && (
+          <button
+            onClick={() => setSelectedFile("")}
+            className="sm:hidden px-4 py-2 text-xs text-[var(--accent)] border-b border-[var(--border)]"
+          >
+            Back to files
+          </button>
+        )}
+        <FileEditor filePath={selectedFile} workspacePath={agent.workspace_path} />
+      </div>
     </div>
   );
 }

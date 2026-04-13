@@ -47,13 +47,12 @@ export function FileEditor({ filePath, workspacePath }: FileEditorProps) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
-      // error handled by UI
+      /* handled by UI */
     } finally {
       setSaving(false);
     }
   }, [content, filePath, workspacePath]);
 
-  // Ctrl/Cmd+S to save
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
@@ -67,33 +66,33 @@ export function FileEditor({ filePath, workspacePath }: FileEditorProps) {
 
   if (!filePath) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center gap-2">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-[var(--text-tertiary)] opacity-40">
+          <path d="M5 3h8l6 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zM13 3v6h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
         <p className="text-[var(--text-tertiary)] text-sm">Select a file</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
-        <span className="text-xs text-[var(--text-secondary)] truncate">
+    <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] bg-[var(--topbar-bg)]">
+        <span className="text-xs text-[var(--text-secondary)] truncate font-mono">
           {filePath}
-          {isDirty && <span className="ml-1 text-[var(--accent)]">(modified)</span>}
+          {isDirty && <span className="ml-1.5 text-[var(--accent)] font-sans">modified</span>}
         </span>
-        <div className="flex items-center gap-2">
-          {saved && (
-            <span className="text-xs text-green-600">Saved</span>
-          )}
+        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+          {saved && <span className="text-xs text-emerald-500 font-medium">Saved</span>}
           <button
             onClick={save}
             disabled={!isDirty || saving}
             className="
-              px-3 py-1 rounded-md text-xs font-medium
+              px-3 py-1 rounded-lg text-xs font-medium
               bg-[var(--accent)] text-white
               hover:bg-[var(--accent-hover)]
-              disabled:opacity-30 disabled:cursor-default
-              transition-colors
+              disabled:opacity-25 disabled:cursor-default
+              transition-all duration-150
             "
           >
             {saving ? "Saving..." : "Save"}
@@ -101,10 +100,9 @@ export function FileEditor({ filePath, workspacePath }: FileEditorProps) {
         </div>
       </div>
 
-      {/* Editor */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[var(--text-tertiary)] text-xs">Loading...</p>
+          <div className="w-5 h-5 border-2 border-[var(--border-strong)] border-t-[var(--accent)] rounded-full animate-spin" />
         </div>
       ) : (
         <textarea
@@ -112,8 +110,8 @@ export function FileEditor({ filePath, workspacePath }: FileEditorProps) {
           onChange={(e) => setContent(e.target.value)}
           spellCheck={false}
           className="
-            flex-1 w-full p-4 resize-none
-            font-mono text-sm leading-relaxed
+            flex-1 w-full p-4 resize-none font-mono
+            text-[13px] leading-[1.7] tabular-nums
             bg-[var(--bg-primary)] text-[var(--text-primary)]
             focus:outline-none
           "

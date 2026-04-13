@@ -7,15 +7,12 @@ import type { Agent } from "@/lib/types";
 import { Sidebar } from "@/components/Sidebar";
 import { TabBar } from "@/components/TabBar";
 
-export default function AgentLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AgentLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const agentId = params.id as string;
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agent, setAgent] = useState<Agent | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     pb.collection("agents")
@@ -34,9 +31,18 @@ export default function AgentLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar agents={agents} activeId={agentId} />
+      <Sidebar
+        agents={agents}
+        activeId={agentId}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
       <div className="flex-1 flex flex-col min-w-0">
-        <TabBar agentId={agentId} agentName={agent?.name || ""} />
+        <TabBar
+          agentId={agentId}
+          agentName={agent?.name || ""}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
         <div className="flex-1 min-h-0">{children}</div>
       </div>
     </div>
