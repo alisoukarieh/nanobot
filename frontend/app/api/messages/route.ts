@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     // Load ALL messages then filter by session ID in JS
     // (PB 0.36 relation filters are unreliable without auth)
     const msgRes = await fetch(
-      `${PB_URL}/api/collections/messages/records?sort=created&perPage=500`,
+      `${PB_URL}/api/collections/messages/records?perPage=500`,
     );
     const msgData = await msgRes.json();
     const messages = (msgData.items || [])
