@@ -90,20 +90,31 @@ If the page needs filesystem access or secrets, add `frontend/app/api/<name>/rou
 
 ### 4. **Rebuild the dashboard** (required)
 
-Next.js only knows about routes at build time. **A new page file is invisible until the dashboard is rebuilt.** Trigger the rebuild:
+Next.js only knows about routes at build time. **A new page file is invisible until the dashboard is rebuilt.** You have everything needed to do this yourself — do not ask the user to run curl.
+
+The agent container has two env vars pre-set for this:
+- `$NANOBOT_API_KEY` — the bearer token
+- `$DASHBOARD_INTERNAL_URL` — the dashboard host on the internal Docker network (typically `http://dashboard:3000`)
+
+Use the `exec` tool:
 
 ```bash
 curl -X POST \
   -H "Authorization: Bearer $NANOBOT_API_KEY" \
-  http://dashboard:3000/api/dashboard/rebuild
+  "$DASHBOARD_INTERNAL_URL/api/dashboard/rebuild"
 ```
 
-- Returns `202 {"status":"rebuilding","eta_seconds":90}` immediately.
-- The dashboard process exits; Docker's `restart: unless-stopped` brings the container back up.
-- The entrypoint re-runs `npm run build` then `next start`. Takes ~1–2 min; dashboard is 502 during that window.
-- `$NANOBOT_API_KEY` is the same key the agent uses to talk to its own `/v1/chat/completions`.
+Expected output: `{"status":"rebuilding","eta_seconds":90}` (HTTP 202).
 
-**Always tell the user to expect ~90s of downtime and to refresh when you trigger this.** Don't rebuild silently mid-conversation without warning.
+**Before you run it, tell the user**: "I'm going to trigger the dashboard rebuild — the site will be unavailable for ~90 seconds. Refresh after that and the new page will be live." Then run the curl. Don't rebuild silently mid-conversation.
+
+If the curl fails with `unauthorized`, the env vars weren't propagated — fall back to asking the user to run it from their host:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $NANOBOT_API_KEY" \
+  http://nanobot-173-212-239-198.traefik.me/api/dashboard/rebuild
+```
 
 ## Custom skills
 
