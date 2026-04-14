@@ -201,6 +201,7 @@ class SessionManager:
                     msg: dict[str, Any] = {
                         "role": m.get("role", ""),
                         "content": m.get("content", ""),
+                        "_pb_id": m.get("id"),  # track for incremental saves
                     }
                     if m.get("extra"):
                         try:
@@ -235,75 +236,79 @@ class SessionManager:
             return None
 
     async def _pb_save(self, session: Session) -> None:
-        """Save session and messages to PocketBase."""
+        """Save session and messages to PocketBase incrementally.
+
+        Each in-memory message that has a `_pb_id` is already in PB and is
+        skipped. New messages are inserted; the returned record id is stored
+        back on the in-memory dict so subsequent saves don't re-insert it.
+        """
         try:
-            # Upsert session record
             session_data = {
                 "key": session.key,
                 "last_consolidated": session.last_consolidated,
                 "metadata": json.dumps(session.metadata),
             }
 
-            if session._pb_session_id:
-                await self._pb.update_record("sessions", session._pb_session_id, session_data)
-            else:
-                # Try to find existing
+            # Upsert the session row
+            if not session._pb_session_id:
+                # Try to find an existing record for this key first
                 result = await self._pb.query_records(
-                    "sessions", filter_expr=f"key = '{session.key}'", per_page=1,
+                    "sessions", filter_expr=f"key = '{session.key}'", per_page=50,
                 )
                 items = result.get("items", [])
                 if items:
                     session._pb_session_id = items[0]["id"]
-                    await self._pb.update_record("sessions", session._pb_session_id, session_data)
+                    # Drop dups in the background — never let them block save
+                    for dup in items[1:]:
+                        try:
+                            await self._pb.delete_record("sessions", dup["id"])
+                        except Exception as e:
+                            logger.warning("PB: failed to delete dup session {}: {}", dup["id"], e)
                 else:
-                    result = await self._pb.insert_record("sessions", session_data)
-                    session._pb_session_id = result.get("id")
+                    created = await self._pb.insert_record("sessions", session_data)
+                    session._pb_session_id = created.get("id")
+
+            if session._pb_session_id:
+                try:
+                    await self._pb.update_record("sessions", session._pb_session_id, session_data)
+                except Exception as e:
+                    logger.warning("PB: failed to update session {}: {}", session._pb_session_id, e)
 
             if not session._pb_session_id:
+                logger.warning("PB: no session id after upsert for key {}", session.key)
                 return
 
-            # Sync messages: delete all existing, re-insert current
-            # (Simple approach; optimize with incremental sync later)
-            existing = await self._pb.query_records(
-                "messages",
-                filter_expr=f"session.id = '{session._pb_session_id}'",
-                per_page=1,
-            )
-            total_existing = existing.get("totalItems", 0)
-
-            if total_existing > 0:
-                # Delete in batches
-                page = 1
-                while True:
-                    batch = await self._pb.query_records(
-                        "messages",
-                        filter_expr=f"session.id = '{session._pb_session_id}'",
-                        page=1,  # always page 1 since we're deleting
-                        per_page=100,
-                    )
-                    items = batch.get("items", [])
-                    if not items:
-                        break
-                    for item in items:
-                        await self._pb.delete_record("messages", item["id"])
-
-            # Insert all current messages
+            # Incremental: insert only messages without a _pb_id.
+            # We never delete here — old/consolidated messages stay in PB so
+            # nothing in the active turn can be lost by a transient failure.
+            inserted = 0
             for i, msg in enumerate(session.messages):
+                if msg.get("_pb_id"):
+                    continue
                 extra_fields = {}
                 for k in ("tool_calls", "tool_call_id", "name", "reasoning_content"):
                     if k in msg:
                         extra_fields[k] = msg[k]
-
-                await self._pb.insert_record("messages", {
-                    "session": session._pb_session_id,
-                    "role": msg.get("role", ""),
-                    "content": msg.get("content", ""),
-                    "timestamp": msg.get("timestamp", ""),
-                    "position": i,
-                    "extra": json.dumps(extra_fields) if extra_fields else "",
-                })
-        except Exception as e:
-            logger.warning("PB: failed to save session {}: {}, falling back to JSONL", session.key, e)
+                try:
+                    result = await self._pb.insert_record("messages", {
+                        "session": session._pb_session_id,
+                        "role": msg.get("role", ""),
+                        "content": msg.get("content", ""),
+                        "timestamp": msg.get("timestamp", ""),
+                        "position": i,
+                        "extra": json.dumps(extra_fields) if extra_fields else "",
+                    })
+                    msg["_pb_id"] = result.get("id")
+                    inserted += 1
+                except Exception:
+                    logger.exception(
+                        "PB: failed to insert message {} (role={}) for session {}",
+                        i, msg.get("role"), session._pb_session_id,
+                    )
+            if inserted:
+                logger.debug("PB: inserted {} new messages for session {}", inserted, session.key)
+        except Exception:
+            logger.exception("PB: _pb_save failed for session {}, falling back to JSONL", session.key)
             self._save_jsonl(session)
 
     async def _pb_list_sessions(self) -> list[dict[str, Any]]:
