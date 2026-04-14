@@ -154,7 +154,7 @@ export default function McpPage() {
           </div>
         )}
 
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
           {entries.map(([serverName, config]) => (
             <div key={serverName}
               className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors">
