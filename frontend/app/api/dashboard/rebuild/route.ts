@@ -12,13 +12,14 @@ import { NextRequest, NextResponse } from "next/server";
 // auth.
 
 export async function POST(request: NextRequest) {
-  const forwarded =
-    request.headers.get("x-forwarded-for") ||
-    request.headers.get("x-forwarded-host") ||
-    request.headers.get("x-forwarded-proto") ||
-    request.headers.get("x-real-ip");
-
-  if (forwarded) {
+  // Allow only requests addressed to the internal service hostname.
+  // Traefik forwards external traffic with host = public domain, while
+  // containers on the Docker `internal` network hit the service directly
+  // (host = "dashboard:3000" or "dashboard").
+  const host = (request.headers.get("host") || "").toLowerCase();
+  const hostname = host.split(":")[0];
+  const internalHosts = new Set(["dashboard", "localhost", "127.0.0.1"]);
+  if (!internalHosts.has(hostname)) {
     return NextResponse.json(
       { error: "rebuild endpoint is internal-only" },
       { status: 403 },
