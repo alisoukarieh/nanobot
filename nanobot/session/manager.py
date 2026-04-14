@@ -111,18 +111,65 @@ class SessionManager:
     # ── Public API (async) ────────────────────────────────────────────
 
     async def get_or_create(self, key: str) -> Session:
-        """Get an existing session or create a new one."""
+        """Get an existing session or create a new one.
+
+        Critical: only create a NEW PB session record if we have CONFIRMED
+        no record exists for this key. A transient PB failure must NOT
+        cause a duplicate session — that's how we end up with orphaned
+        chat history split across N records under the same key.
+        """
         if key in self._cache:
             return self._cache[key]
 
-        session = await self._load(key)
-        if session is None:
-            session = Session(key=key)
-            if self._pb:
+        session: Session | None = None
+        if self._pb:
+            session = await self._pb_load_or_stub(key)
+            # Only create when _pb_load_or_stub returned None (confirmed: no record).
+            if session is None:
+                session = Session(key=key)
                 await self._pb_create_session(session)
+        else:
+            session = self._load_jsonl(key) or Session(key=key)
 
         self._cache[key] = session
         return session
+
+    async def _pb_load_or_stub(self, key: str) -> Session | None:
+        """Load a session from PB with retries.
+
+        Returns:
+          - The loaded Session when found.
+          - None ONLY when the query succeeded and confirmed zero records
+            exist for this key (caller is then safe to create a fresh one).
+          - A stub Session (no _pb_session_id) when PB is unreachable, so
+            we don't blindly create a duplicate. _pb_save's upsert path
+            will reconcile against the real record once PB recovers.
+        """
+        import asyncio as _asyncio
+
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                result = await self._pb.query_records(
+                    "sessions", filter_expr=f"key = '{key}'", per_page=50,
+                )
+                items = result.get("items", [])
+                if not items:
+                    return None
+                return await self._pb_load(key)
+            except Exception as e:
+                last_err = e
+                logger.warning(
+                    "PB: session lookup attempt {} for key={} failed: {}",
+                    attempt + 1, key, e,
+                )
+                await _asyncio.sleep(0.5 * (attempt + 1))
+
+        logger.error(
+            "PB: session lookup for key={} failed after retries; using stub. "
+            "Last error: {}", key, last_err,
+        )
+        return Session(key=key)
 
     async def save(self, session: Session) -> None:
         """Save a session."""
