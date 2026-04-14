@@ -47,7 +47,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           agentName={activeName}
           onMenuClick={() => setSidebarOpen(true)}
         />
-        <div className="flex-1 min-h-0">{children}</div>
+        {/* grid grid-rows-[1fr] gives children a definite height so h-full inside works in flex contexts */}
+        <main className="flex-1 min-h-0 grid grid-rows-[1fr] overflow-hidden">{children}</main>
       </div>
     </div>
   );

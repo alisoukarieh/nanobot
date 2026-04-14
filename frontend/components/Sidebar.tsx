@@ -104,13 +104,8 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
         `}
       >
         <div className="px-5 pt-6 pb-4 flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center">
-              <span className="text-white text-[11px] font-bold tracking-tight">nb</span>
-            </div>
-            <span className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.02em]">
-              nanobot
-            </span>
+          <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center">
+            <span className="text-white text-[11px] font-bold tracking-tight">nb</span>
           </div>
           <button onClick={onClose} className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-all">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
