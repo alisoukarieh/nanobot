@@ -9,7 +9,15 @@ interface PbMessage {
   session: string;
   role: string;
   content: string;
-  created: string;
+  // The messages collection uses a custom `timestamp` field rather than
+  // PB's auto-generated `created`. Fall back to created if missing.
+  timestamp?: string;
+  created?: string;
+  position?: number;
+}
+
+function msgTime(m: PbMessage): string {
+  return m.timestamp || m.created || "";
 }
 
 export async function GET(request: NextRequest) {
@@ -46,12 +54,13 @@ export async function GET(request: NextRequest) {
       sessions[0],
     );
 
-    // Sort newest-first, apply `before` cursor, take `limit`, then reverse to oldest-first for display
+    // Sort newest-first using timestamp (or created fallback), apply `before` cursor,
+    // take `limit`, then reverse to oldest-first for display.
     const sessionMessages = items
       .filter((m) => m.session === session.id)
-      .sort((a, b) => (a.created < b.created ? 1 : -1)); // DESC
+      .sort((a, b) => (msgTime(a) < msgTime(b) ? 1 : -1)); // DESC
 
-    const filtered = before ? sessionMessages.filter((m) => m.created < before) : sessionMessages;
+    const filtered = before ? sessionMessages.filter((m) => msgTime(m) < before) : sessionMessages;
     const page = filtered.slice(0, limit);
     const hasMore = filtered.length > page.length;
 
@@ -61,7 +70,7 @@ export async function GET(request: NextRequest) {
         id: m.id,
         role: m.role,
         content: m.content,
-        created: m.created,
+        created: msgTime(m),
       }));
 
     return NextResponse.json({ messages, hasMore });

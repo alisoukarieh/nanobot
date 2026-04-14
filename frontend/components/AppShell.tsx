@@ -47,8 +47,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           agentName={activeName}
           onMenuClick={() => setSidebarOpen(true)}
         />
-        {/* grid grid-rows-[1fr] gives children a definite height so h-full inside works in flex contexts */}
-        <main className="flex-1 min-h-0 grid grid-rows-[1fr] overflow-hidden">{children}</main>
+        {/* grid-rows-[minmax(0,1fr)] forces the row to shrink to container height instead of
+            expanding to content — without it, pages using h-full overflow-y-auto can't scroll. */}
+        <main className="flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)] overflow-hidden">{children}</main>
       </div>
     </div>
   );
