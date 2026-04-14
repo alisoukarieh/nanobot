@@ -154,43 +154,82 @@ export default function McpPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          {entries.map(([serverName, config]) => (
-            <div key={serverName}
-              className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{serverName}</h3>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]">
-                      {config.type || (config.command ? "stdio" : "http")}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {entries.map(([serverName, config], i) => {
+            const transport = config.type || (config.command ? "stdio" : "http");
+            const authed = Boolean(config.auth) || Boolean(config.headers && Object.keys(config.headers).length > 0);
+            const canOAuth = Boolean(config.url) && !authed;
+            const snippet = config.command
+              ? `${config.command} ${config.args?.join(" ") || ""}`.trim()
+              : (config.url || "");
+            const transportColor: Record<string, string> = {
+              stdio: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+              sse: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+              streamableHttp: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+              http: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+            };
+            return (
+              <div
+                key={serverName}
+                style={{ animationDelay: `${i * 30}ms` }}
+                className="animate-in group relative flex flex-col bg-[var(--bg-secondary)] rounded-2xl p-4 border border-[var(--border)] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-sm)] transition-all"
+              >
+                {/* Header row: avatar + name + transport */}
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent)]/70 flex items-center justify-center flex-shrink-0 shadow-[var(--shadow-xs)]">
+                    <span className="text-white text-[13px] font-bold tracking-tight">
+                      {serverName.slice(0, 2).toUpperCase()}
                     </span>
-                    <span className="text-xs text-[var(--text-tertiary)] font-mono truncate">
-                      {config.command ? `${config.command} ${config.args?.join(" ") || ""}` : config.url}
-                    </span>
-                    {(config.auth || (config.headers && Object.keys(config.headers).length > 0)) ? (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)]">
-                        auth
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate leading-tight">
+                      {serverName}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${transportColor[transport] || "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]"}`}>
+                        {transport}
                       </span>
-                    ) : null}
+                      {authed && (
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)]">
+                          auth
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {config.url && !config.auth && !(config.headers && Object.keys(config.headers).length > 0) && (
-                    <button onClick={() => handleOAuthConnect(serverName, config.url!)}
+
+                {/* Command / URL snippet */}
+                <div className="flex-1 min-h-[32px] mb-3 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)]/60 border border-[var(--border)]">
+                  <p className="text-[11px] font-mono text-[var(--text-secondary)] break-all line-clamp-2 leading-snug">
+                    {snippet || "—"}
+                  </p>
+                </div>
+
+                {/* Actions footer */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border)]/60">
+                  {canOAuth ? (
+                    <button
+                      onClick={() => handleOAuthConnect(serverName, config.url!)}
                       disabled={connecting === serverName}
-                      className="text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent-soft)] px-2.5 py-1 rounded-lg transition-all">
-                      {connecting === serverName ? "Connecting..." : "Connect"}
+                      className="text-[11px] font-semibold text-[var(--accent)] hover:bg-[var(--accent-soft)] px-2 py-1 rounded-md transition-all disabled:opacity-60"
+                    >
+                      {connecting === serverName ? "Connecting..." : "Connect OAuth"}
                     </button>
+                  ) : (
+                    <span className="text-[10px] text-[var(--text-tertiary)] px-1">
+                      {authed ? "Configured" : "—"}
+                    </span>
                   )}
-                  <button onClick={() => handleDelete(serverName)}
-                    className="text-xs text-[var(--text-tertiary)] hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10">
+                  <button
+                    onClick={() => handleDelete(serverName)}
+                    className="text-[11px] text-[var(--text-tertiary)] hover:text-red-500 transition-colors px-2 py-1 rounded-md hover:bg-red-500/10"
+                  >
                     Remove
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {adding && (
