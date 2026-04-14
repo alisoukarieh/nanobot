@@ -78,7 +78,9 @@ class MCPToolWrapper(Tool):
     def __init__(self, session, server_name: str, tool_def, tool_timeout: int = 30):
         self._session = session
         self._original_name = tool_def.name
-        self._name = f"mcp_{server_name}_{tool_def.name}"
+        import re
+        safe_server = re.sub(r"[^a-zA-Z0-9_-]", "_", server_name)
+        self._name = f"mcp_{safe_server}_{tool_def.name}"
         self._description = tool_def.description or tool_def.name
         raw_schema = tool_def.inputSchema or {"type": "object", "properties": {}}
         self._parameters = _normalize_schema_for_openai(raw_schema)
@@ -139,7 +141,9 @@ class MCPResourceWrapper(Tool):
     def __init__(self, session, server_name: str, resource_def, resource_timeout: int = 30):
         self._session = session
         self._uri = resource_def.uri
-        self._name = f"mcp_{server_name}_resource_{resource_def.name}"
+        import re
+        safe_server = re.sub(r"[^a-zA-Z0-9_-]", "_", server_name)
+        self._name = f"mcp_{safe_server}_resource_{resource_def.name}"
         desc = resource_def.description or resource_def.name
         self._description = f"[MCP Resource] {desc}\nURI: {self._uri}"
         self._parameters: dict[str, Any] = {
@@ -210,7 +214,9 @@ class MCPPromptWrapper(Tool):
     def __init__(self, session, server_name: str, prompt_def, prompt_timeout: int = 30):
         self._session = session
         self._prompt_name = prompt_def.name
-        self._name = f"mcp_{server_name}_prompt_{prompt_def.name}"
+        import re
+        safe_server = re.sub(r"[^a-zA-Z0-9_-]", "_", server_name)
+        self._name = f"mcp_{safe_server}_prompt_{prompt_def.name}"
         desc = prompt_def.description or prompt_def.name
         self._description = (
             f"[MCP Prompt] {desc}\n"
