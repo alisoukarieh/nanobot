@@ -200,7 +200,7 @@ class SessionManager:
             result = await self._pb.query_records(
                 "messages",
                 filter_expr=f"session.id = '{pb_session_id}'",
-                sort="position,created",
+                sort="position,timestamp",
                 page=page,
                 per_page=100,
             )
