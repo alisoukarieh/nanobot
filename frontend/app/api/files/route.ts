@@ -66,6 +66,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
+    await fs.mkdir(path.dirname(resolved), { recursive: true });
     await fs.writeFile(resolved, body.content, "utf-8");
     return NextResponse.json({ ok: true });
   } catch {
