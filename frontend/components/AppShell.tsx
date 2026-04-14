@@ -1,46 +1,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import pb from "@/lib/pocketbase";
 import type { Agent } from "@/lib/types";
 import { Sidebar } from "@/components/Sidebar";
 import { TabBar } from "@/components/TabBar";
 
-export default function AgentLayout({ children }: { children: React.ReactNode }) {
+// Routes that render their own chrome (no sidebar).
+const BARE_ROUTES = ["/login"];
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() || "";
   const params = useParams();
-  const agentId = params.id as string;
+  const routeAgentId = (params?.id as string) || "";
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [agent, setAgent] = useState<Agent | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const isBare = BARE_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
   useEffect(() => {
+    if (isBare) return;
     pb.collection("agents")
       .getFullList<Agent>({ sort: "name" })
       .then(setAgents)
       .catch(() => {});
-  }, []);
+  }, [isBare]);
 
-  useEffect(() => {
-    if (!agentId) return;
-    pb.collection("agents")
-      .getOne<Agent>(agentId)
-      .then(setAgent)
-      .catch(() => {});
-  }, [agentId]);
+  if (isBare) return <>{children}</>;
+
+  const activeId = routeAgentId || agents[0]?.id || "";
+  const activeName =
+    agents.find((a) => a.id === activeId)?.name || agents[0]?.name || "";
 
   return (
     <div className="flex h-screen">
       <Sidebar
         agents={agents}
-        activeId={agentId}
+        activeId={activeId}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar
-          agentId={agentId}
-          agentName={agent?.name || ""}
+          agentId={activeId}
+          agentName={activeName}
           onMenuClick={() => setSidebarOpen(true)}
         />
         <div className="flex-1 min-h-0">{children}</div>

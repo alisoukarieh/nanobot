@@ -35,12 +35,12 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
 
   useEffect(() => {
     fetch("/api/custom-nav")
-      .then((r) => r.ok ? r.json() : { items: [] })
+      .then((r) => (r.ok ? r.json() : { items: [] }))
       .then((d) => setCustomItems(Array.isArray(d?.items) ? d.items : []))
       .catch(() => setCustomItems([]));
   }, []);
 
-  const activeAgent = agents.find(a => a.id === activeId) || agents[0];
+  const activeAgent = agents.find((a) => a.id === activeId) || agents[0];
 
   const nextTheme = () => {
     const order = ["light", "dark", "system"] as const;
@@ -48,32 +48,61 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
     setTheme(order[(idx + 1) % 3]);
   };
 
-  const themeIcon = theme === "dark" ? (
-    <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.75 2.75l1.06 1.06M9.19 9.19l1.06 1.06M2.75 11.25l1.06-1.06M9.19 4.81l1.06-1.06M9.5 7a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-  ) : theme === "light" ? (
-    <path d="M11.5 8a4.5 4.5 0 01-6-6 4.5 4.5 0 106 6z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-  ) : (
-    <><path d="M2 7a5 5 0 1010 0A5 5 0 002 7z" stroke="currentColor" strokeWidth="1.2"/><path d="M7 2v10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></>
-  );
+  const themeIcon =
+    theme === "dark" ? (
+      <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.75 2.75l1.06 1.06M9.19 9.19l1.06 1.06M2.75 11.25l1.06-1.06M9.19 4.81l1.06-1.06M9.5 7a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    ) : theme === "light" ? (
+      <path d="M11.5 8a4.5 4.5 0 01-6-6 4.5 4.5 0 106 6z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    ) : (
+      <><path d="M2 7a5 5 0 1010 0A5 5 0 002 7z" stroke="currentColor" strokeWidth="1.2"/><path d="M7 2v10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></>
+    );
 
-  const coreNav = activeAgent ? [
-    { label: "Chat", href: `/agent/${activeAgent.id}/chat` },
-    { label: "Files", href: `/agent/${activeAgent.id}/files` },
-    { label: "MCP", href: `/agent/${activeAgent.id}/mcp` },
-  ] : [];
+  const coreNav = activeAgent
+    ? [
+        { label: "Chat", href: `/agent/${activeAgent.id}/chat` },
+        { label: "Files", href: `/agent/${activeAgent.id}/files` },
+        { label: "MCP", href: `/agent/${activeAgent.id}/mcp` },
+      ]
+    : [];
+
+  const NavLink = ({ item, delay }: { item: { label: string; href: string; icon?: string }; delay: number }) => {
+    const isActive = pathname.startsWith(item.href);
+    return (
+      <Link
+        href={item.href}
+        onClick={onClose}
+        style={{ animationDelay: `${delay}ms` }}
+        className={`
+          animate-in flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13px] transition-all duration-200
+          ${
+            isActive
+              ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium shadow-[inset_0_0_0_1px_var(--accent-glow)]"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 hover:text-[var(--text-primary)]"
+          }
+        `}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 opacity-80">
+          {navIcons[item.icon || item.label] || navIcons.Records}
+        </svg>
+        <span>{item.label}</span>
+      </Link>
+    );
+  };
 
   return (
     <>
       {open && (
-        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-sm" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm" onClick={onClose} />
       )}
-      <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50
-        w-[260px] lg:w-[220px] h-screen flex flex-col
-        border-r border-[var(--border)] bg-[var(--sidebar-bg)] glass relative noise
-        transition-transform duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]
-        ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-      `}>
+      <aside
+        className={`
+          fixed md:static inset-y-0 left-0 z-50
+          w-[260px] md:w-[224px] h-screen flex flex-col
+          border-r border-[var(--border)] bg-[var(--sidebar-bg)] glass relative noise
+          transition-transform duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]
+          ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}
+      >
         <div className="px-5 pt-6 pb-4 flex items-center justify-between relative z-10">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center">
@@ -83,8 +112,10 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
               nanobot
             </span>
           </div>
-          <button onClick={onClose} className="lg:hidden w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-all">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11 3L3 11M3 3l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          <button onClick={onClose} className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-all">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M11 3L3 11M3 3l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
           </button>
         </div>
 
@@ -95,9 +126,7 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
                 {activeAgent.name.charAt(0).toUpperCase()}
               </span>
               <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-[var(--text-primary)] truncate">
-                  {activeAgent.name}
-                </p>
+                <p className="text-[12px] font-semibold text-[var(--text-primary)] truncate">{activeAgent.name}</p>
                 <p className="text-[10px] text-[var(--text-tertiary)]">Active agent</p>
               </div>
             </div>
@@ -105,57 +134,17 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
         )}
 
         <nav className="flex-1 overflow-y-auto px-3 space-y-0.5 relative z-10">
-          <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 py-2">Workspace</p>
-          {coreNav.map((item, i) => {
-            const isActive = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                style={{ animationDelay: `${i * 30}ms` }}
-                className={`
-                  animate-in flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13px] transition-all duration-200
-                  ${isActive
-                    ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium shadow-[inset_0_0_0_1px_var(--accent-glow)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 hover:text-[var(--text-primary)]"
-                  }
-                `}
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 opacity-80">
-                  {navIcons[item.label]}
-                </svg>
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 py-2">
+            Workspace
+          </p>
+          {coreNav.map((item, i) => <NavLink key={item.href} item={item} delay={i * 30} />)}
 
           {customItems.length > 0 && (
             <>
-              <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 pt-4 pb-2">Custom</p>
-              {customItems.map((item, i) => {
-                const isActive = pathname.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onClose}
-                    style={{ animationDelay: `${i * 30}ms` }}
-                    className={`
-                      animate-in flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13px] transition-all duration-200
-                      ${isActive
-                        ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium shadow-[inset_0_0_0_1px_var(--accent-glow)]"
-                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 hover:text-[var(--text-primary)]"
-                      }
-                    `}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 opacity-80">
-                      {navIcons[item.icon || item.label] || navIcons.Records}
-                    </svg>
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
+              <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 pt-4 pb-2">
+                Custom
+              </p>
+              {customItems.map((item, i) => <NavLink key={item.href} item={item} delay={i * 30} />)}
             </>
           )}
         </nav>

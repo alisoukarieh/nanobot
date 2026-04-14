@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 
 interface McpServer {
   type?: string;
@@ -103,18 +104,12 @@ export default function McpPage() {
   const hasChanges = true; // simplified — always show restart
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--text-primary)] tracking-[-0.01em]">
-              MCP Servers
-            </h2>
-            <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
-              Extend your agent with external tools
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+    <div className="flex flex-col h-full">
+      <PageHeader
+        title="MCP Servers"
+        subtitle="Extend your agent with external tools"
+        actions={
+          <>
             <button
               onClick={handleRestart}
               disabled={restarting}
@@ -130,9 +125,11 @@ export default function McpPage() {
                 Add Server
               </button>
             )}
-          </div>
-        </div>
-
+          </>
+        }
+      />
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         {justConnected && (
           <div className="mb-4 px-4 py-3 rounded-xl bg-[var(--accent-soft)] border border-[var(--accent-glow)] text-[13px] text-[var(--accent)] font-medium">
             Connected to "{justConnected}". Click "Restart Agent" to apply.
@@ -302,6 +299,7 @@ export default function McpPage() {
         <p className="text-[10px] text-[var(--text-tertiary)] mt-8">
           Click "Restart Agent" after making changes to apply them.
         </p>
+        </div>
       </div>
     </div>
   );
