@@ -167,9 +167,8 @@ class SessionManager:
     async def _pb_load(self, key: str) -> Session | None:
         """Load a session and its messages from PocketBase."""
         try:
-            # Sort by -updated to always get the most recent session
             result = await self._pb.query_records(
-                "sessions", filter_expr=f"key = '{key}'", sort="-updated", per_page=50,
+                "sessions", filter_expr=f"key = '{key}'", per_page=50,
             )
             items = result.get("items", [])
             if not items:
