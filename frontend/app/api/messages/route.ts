@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     // Find session by key
     const sessRes = await fetch(
-      `${PB_URL}/api/collections/sessions/records?filter=${encodeURIComponent(`key = '${sessionKey}'`)}&perPage=1`,
+      `${PB_URL}/api/collections/sessions/records?filter=${encodeURIComponent(`key = '${sessionKey}'`)}&sort=-updated&perPage=1`,
     );
     const sessData = await sessRes.json();
     const session = sessData.items?.[0];

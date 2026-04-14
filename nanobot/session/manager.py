@@ -167,12 +167,21 @@ class SessionManager:
     async def _pb_load(self, key: str) -> Session | None:
         """Load a session and its messages from PocketBase."""
         try:
+            # Sort by -updated to always get the most recent session
             result = await self._pb.query_records(
-                "sessions", filter_expr=f"key = '{key}'", per_page=1,
+                "sessions", filter_expr=f"key = '{key}'", sort="-updated", per_page=50,
             )
             items = result.get("items", [])
             if not items:
                 return None
+
+            # If duplicates exist, delete the older ones (keep the most recent)
+            if len(items) > 1:
+                for dup in items[1:]:
+                    try:
+                        await self._pb.delete_record("sessions", dup["id"])
+                    except Exception:
+                        pass
 
             record = items[0]
             pb_session_id = record["id"]
