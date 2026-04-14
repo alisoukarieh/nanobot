@@ -1,31 +1,66 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message } from "./types";
 
 interface UseChatOptions {
   sessionKey: string;
+  pageSize?: number;
 }
 
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-export function useChat({ sessionKey }: UseChatOptions) {
+export function useChat({ sessionKey, pageSize = 50 }: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [sending, setSending] = useState(false);
+  const inFlightCursor = useRef<string | null>(null);
 
-  // Load messages from server-side API route
+  // Initial load: most recent page
   useEffect(() => {
     if (!sessionKey) return;
     setLoading(true);
-    fetch(`/api/messages?sessionKey=${encodeURIComponent(sessionKey)}`)
+    setMessages([]);
+    setHasMore(false);
+    inFlightCursor.current = null;
+    fetch(`/api/messages?sessionKey=${encodeURIComponent(sessionKey)}&limit=${pageSize}`)
       .then((r) => r.json())
-      .then((data) => setMessages(data.messages || []))
-      .catch(() => setMessages([]))
+      .then((data) => {
+        setMessages(data.messages || []);
+        setHasMore(Boolean(data.hasMore));
+      })
+      .catch(() => {
+        setMessages([]);
+        setHasMore(false);
+      })
       .finally(() => setLoading(false));
-  }, [sessionKey]);
+  }, [sessionKey, pageSize]);
+
+  // Load older messages (prepend)
+  const loadOlder = useCallback(async () => {
+    if (loadingOlder || !hasMore || messages.length === 0) return;
+    const oldestCreated = messages[0].created;
+    if (inFlightCursor.current === oldestCreated) return; // dedupe
+    inFlightCursor.current = oldestCreated;
+    setLoadingOlder(true);
+    try {
+      const res = await fetch(
+        `/api/messages?sessionKey=${encodeURIComponent(sessionKey)}&before=${encodeURIComponent(oldestCreated)}&limit=${pageSize}`,
+      );
+      const data = await res.json();
+      const older: Message[] = data.messages || [];
+      setMessages((prev) => [...older, ...prev]);
+      setHasMore(Boolean(data.hasMore));
+    } catch {
+      // swallow
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [sessionKey, pageSize, messages, loadingOlder, hasMore]);
 
   const send = useCallback(
     async (text: string) => {
@@ -63,5 +98,5 @@ export function useChat({ sessionKey }: UseChatOptions) {
     [sending],
   );
 
-  return { messages, loading, sending, send };
+  return { messages, loading, loadingOlder, hasMore, sending, send, loadOlder };
 }

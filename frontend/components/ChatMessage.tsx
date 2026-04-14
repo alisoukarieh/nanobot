@@ -17,7 +17,9 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
       )}
       <div
         className={`
-          max-w-[80%] sm:max-w-[65%] px-4 py-3 text-[13.5px] leading-[1.65] whitespace-pre-wrap
+          min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[65%]
+          px-3.5 sm:px-4 py-3 text-[13.5px] leading-[1.65]
+          whitespace-pre-wrap break-words
           ${isUser
             ? "bg-gradient-to-br from-[#059669] to-[#047857] text-white rounded-2xl rounded-br-md shadow-[var(--shadow-sm)]"
             : "bg-[var(--assistant-bg)] text-[var(--text-primary)] rounded-2xl rounded-tl-md border border-[var(--border)] shadow-[var(--shadow-xs)]"
