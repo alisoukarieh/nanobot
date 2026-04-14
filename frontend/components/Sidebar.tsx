@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import type { Agent } from "@/lib/types";
+
+interface CustomNavItem {
+  label: string;
+  href: string;
+  icon?: string;
+}
 
 interface SidebarProps {
   agents: Agent[];
@@ -24,6 +31,14 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
   const { logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
+  const [customItems, setCustomItems] = useState<CustomNavItem[]>([]);
+
+  useEffect(() => {
+    fetch("/api/custom-nav")
+      .then((r) => r.json())
+      .then((d) => setCustomItems(d.items || []))
+      .catch(() => {});
+  }, []);
 
   const activeAgent = agents.find(a => a.id === activeId) || agents[0];
 
@@ -41,11 +56,10 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
     <><path d="M2 7a5 5 0 1010 0A5 5 0 002 7z" stroke="currentColor" strokeWidth="1.2"/><path d="M7 2v10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></>
   );
 
-  const navItems = activeAgent ? [
+  const coreNav = activeAgent ? [
     { label: "Chat", href: `/agent/${activeAgent.id}/chat` },
     { label: "Files", href: `/agent/${activeAgent.id}/files` },
     { label: "MCP", href: `/agent/${activeAgent.id}/mcp` },
-    { label: "Records", href: `/agent/${activeAgent.id}/records` },
   ] : [];
 
   return (
@@ -92,7 +106,7 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
 
         <nav className="flex-1 overflow-y-auto px-3 space-y-0.5 relative z-10">
           <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 py-2">Workspace</p>
-          {navItems.map((item, i) => {
+          {coreNav.map((item, i) => {
             const isActive = pathname.startsWith(item.href);
             return (
               <Link
@@ -115,6 +129,35 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
               </Link>
             );
           })}
+
+          {customItems.length > 0 && (
+            <>
+              <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 pt-4 pb-2">Custom</p>
+              {customItems.map((item, i) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onClose}
+                    style={{ animationDelay: `${i * 30}ms` }}
+                    className={`
+                      animate-in flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13px] transition-all duration-200
+                      ${isActive
+                        ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium shadow-[inset_0_0_0_1px_var(--accent-glow)]"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 hover:text-[var(--text-primary)]"
+                      }
+                    `}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 opacity-80">
+                      {navIcons[item.icon || item.label] || navIcons.Records}
+                    </svg>
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         <div className="px-3 py-3 border-t border-[var(--border)] space-y-0.5 relative z-10">

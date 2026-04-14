@@ -2,3 +2,7 @@ node_modules/
 .next/
 out/
 .env.local
+
+# Custom overlay — user-specific pages and config (not tracked)
+app/custom/
+config/custom-nav.json
