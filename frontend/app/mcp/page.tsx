@@ -129,7 +129,7 @@ export default function McpPage() {
         }
       />
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+        <div className="w-full px-4 sm:px-6 py-4 sm:py-5">
         {justConnected && (
           <div className="mb-4 px-4 py-3 rounded-xl bg-[var(--accent-soft)] border border-[var(--accent-glow)] text-[13px] text-[var(--accent)] font-medium">
             Connected to "{justConnected}". Click "Restart Agent" to apply.

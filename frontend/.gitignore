@@ -3,6 +3,7 @@ node_modules/
 out/
 .env.local
 
-# Custom overlay — user-specific pages and config (not tracked)
-app/custom/
+# Instance-specific pages (users add their own pages under app/ and
+# gitignore the ones they don't want to push upstream).
+app/po/
 config/custom-nav.json

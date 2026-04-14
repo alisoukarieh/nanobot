@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "Records",
-      "href": "/custom/records",
+      "label": "PO",
+      "href": "/po",
       "icon": "records"
     }
   ]

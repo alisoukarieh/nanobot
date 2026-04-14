@@ -1,8 +1,6 @@
 "use client";
 
 interface TabBarProps {
-  agentId: string;
-  agentName: string;
   onMenuClick?: () => void;
 }
 

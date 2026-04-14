@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import pb from "@/lib/pocketbase";
 import type { Agent, FileEntry } from "@/lib/types";
 import { FileTree } from "@/components/FileTree";
@@ -9,17 +8,20 @@ import { FileEditor } from "@/components/FileEditor";
 import { PageHeader } from "@/components/PageHeader";
 
 export default function FilesPage() {
-  const params = useParams();
-  const agentId = params.id as string;
   const [agent, setAgent] = useState<Agent | null>(null);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [currentPath, setCurrentPath] = useState(".");
   const [selectedFile, setSelectedFile] = useState("");
 
+  // Single-agent mode: always use the first agent in PocketBase.
   useEffect(() => {
-    if (!agentId) return;
-    pb.collection("agents").getOne<Agent>(agentId).then(setAgent).catch(() => {});
-  }, [agentId]);
+    pb.collection("agents")
+      .getFullList<Agent>({ sort: "name" })
+      .then((list) => {
+        if (list[0]) setAgent(list[0]);
+      })
+      .catch(() => {});
+  }, []);
 
   const loadDir = useCallback(
     (dirPath: string) => {
@@ -43,10 +45,7 @@ export default function FilesPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader
-        title="Files"
-        subtitle={agent?.workspace_path || "Browse and edit workspace files"}
-      />
+      <PageHeader title="Files" subtitle={agent?.workspace_path} />
       {!agent ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-5 h-5 border-2 border-[var(--border-strong)] border-t-[var(--accent)] rounded-full animate-spin" />

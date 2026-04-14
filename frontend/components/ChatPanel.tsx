@@ -77,7 +77,7 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
   return (
     <div className="flex flex-col h-full bg-[var(--bg-primary)]">
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-4 sm:space-y-5">
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 space-y-3 sm:space-y-4">
           {hasMore && (
             <div className="flex items-center justify-center py-3">
               {loadingOlder ? (
@@ -142,7 +142,7 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
       </div>
 
       <div className="border-t border-[var(--border)] bg-[var(--bg-primary)]">
-        <div className="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 py-2.5 sm:py-3">
           <form onSubmit={handleSubmit} className="relative">
             <input
               type="text"

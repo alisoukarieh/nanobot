@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
-import type { Agent } from "@/lib/types";
 
 interface CustomNavItem {
   label: string;
@@ -14,8 +13,6 @@ interface CustomNavItem {
 }
 
 interface SidebarProps {
-  agents: Agent[];
-  activeId: string;
   open?: boolean;
   onClose?: () => void;
 }
@@ -27,7 +24,13 @@ const navIcons: Record<string, React.ReactNode> = {
   Records: <><path d="M3 2h8a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3"/><path d="M4.5 5.5h5M4.5 7.5h5M4.5 9.5h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></>,
 };
 
-export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
+const CORE_NAV = [
+  { label: "Chat", href: "/chat" },
+  { label: "Files", href: "/files" },
+  { label: "MCP", href: "/mcp" },
+];
+
+export function Sidebar({ open, onClose }: SidebarProps) {
   const { logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
@@ -39,8 +42,6 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
       .then((d) => setCustomItems(Array.isArray(d?.items) ? d.items : []))
       .catch(() => setCustomItems([]));
   }, []);
-
-  const activeAgent = agents.find((a) => a.id === activeId) || agents[0];
 
   const nextTheme = () => {
     const order = ["light", "dark", "system"] as const;
@@ -57,16 +58,8 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
       <><path d="M2 7a5 5 0 1010 0A5 5 0 002 7z" stroke="currentColor" strokeWidth="1.2"/><path d="M7 2v10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></>
     );
 
-  const coreNav = activeAgent
-    ? [
-        { label: "Chat", href: `/agent/${activeAgent.id}/chat` },
-        { label: "Files", href: `/agent/${activeAgent.id}/files` },
-        { label: "MCP", href: `/agent/${activeAgent.id}/mcp` },
-      ]
-    : [];
-
   const NavLink = ({ item, delay }: { item: { label: string; href: string; icon?: string }; delay: number }) => {
-    const isActive = pathname.startsWith(item.href);
+    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
     return (
       <Link
         href={item.href}
@@ -104,8 +97,13 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
         `}
       >
         <div className="px-5 pt-6 pb-4 flex items-center justify-between relative z-10">
-          <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center">
-            <span className="text-white text-[11px] font-bold tracking-tight">nb</span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center">
+              <span className="text-white text-[11px] font-bold tracking-tight">nb</span>
+            </div>
+            <span className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.02em]">
+              nanobot
+            </span>
           </div>
           <button onClick={onClose} className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-all">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -114,30 +112,16 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
           </button>
         </div>
 
-        {activeAgent && (
-          <div className="px-4 pb-3 relative z-10">
-            <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl bg-[var(--bg-tertiary)]/50">
-              <span className="w-7 h-7 rounded-lg bg-[var(--accent)] text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0">
-                {activeAgent.name.charAt(0).toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-[var(--text-primary)] truncate">{activeAgent.name}</p>
-                <p className="text-[10px] text-[var(--text-tertiary)]">Active agent</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         <nav className="flex-1 overflow-y-auto px-3 space-y-0.5 relative z-10">
           <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 py-2">
             Workspace
           </p>
-          {coreNav.map((item, i) => <NavLink key={item.href} item={item} delay={i * 30} />)}
+          {CORE_NAV.map((item, i) => <NavLink key={item.href} item={item} delay={i * 30} />)}
 
           {customItems.length > 0 && (
             <>
               <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 pt-4 pb-2">
-                Custom
+                Extras
               </p>
               {customItems.map((item, i) => <NavLink key={item.href} item={item} delay={i * 30} />)}
             </>

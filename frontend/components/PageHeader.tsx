@@ -9,13 +9,13 @@ interface PageHeaderProps {
 export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   return (
     <div className="border-b border-[var(--border)] bg-[var(--bg-primary)] flex-shrink-0">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[17px] sm:text-[19px] font-semibold text-[var(--text-primary)] tracking-[-0.02em] truncate">
+      <div className="px-4 sm:px-6 py-2.5 sm:py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+        <div className="min-w-0 flex-1 flex items-baseline gap-3 flex-wrap">
+          <h1 className="text-[15px] sm:text-[16px] font-semibold text-[var(--text-primary)] tracking-[-0.01em] truncate">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[12px] sm:text-[12.5px] text-[var(--text-tertiary)] mt-0.5 truncate">{subtitle}</p>
+            <p className="text-[11.5px] text-[var(--text-tertiary)] truncate min-w-0">{subtitle}</p>
           )}
         </div>
         {actions && <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">{actions}</div>}

@@ -46,13 +46,21 @@ export async function GET(request: NextRequest) {
     const allMsgs = await fetch(`${PB_URL}/api/collections/messages/records?perPage=500`).then((r) => r.json());
     const items: PbMessage[] = allMsgs.items || [];
 
-    // Pick the session that has the most messages under this key (handles dup sessions)
-    const counts = new Map<string, number>();
-    for (const m of items) counts.set(m.session, (counts.get(m.session) || 0) + 1);
-    const session = sessions.reduce(
-      (best, s) => ((counts.get(s.id) || 0) > (counts.get(best.id) || 0) ? s : best),
-      sessions[0],
-    );
+    // Duplicate sessions can accumulate under the same key across restarts.
+    // Pick the one the agent is currently writing to — the session whose
+    // latest message has the newest timestamp. This matches what the user
+    // sees in chat and avoids reading from a stale session with more history.
+    const latestPerSession = new Map<string, string>();
+    for (const m of items) {
+      const t = msgTime(m);
+      const prev = latestPerSession.get(m.session) || "";
+      if (t > prev) latestPerSession.set(m.session, t);
+    }
+    const session = sessions.reduce((best, s) => {
+      const bt = latestPerSession.get(best.id) || "";
+      const st = latestPerSession.get(s.id) || "";
+      return st > bt ? s : best;
+    }, sessions[0]);
 
     // Sort newest-first using timestamp (or created fallback), apply `before` cursor,
     // take `limit`, then reverse to oldest-first for display.
