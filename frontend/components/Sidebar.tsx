@@ -35,9 +35,9 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
 
   useEffect(() => {
     fetch("/api/custom-nav")
-      .then((r) => r.json())
-      .then((d) => setCustomItems(d.items || []))
-      .catch(() => {});
+      .then((r) => r.ok ? r.json() : { items: [] })
+      .then((d) => setCustomItems(Array.isArray(d?.items) ? d.items : []))
+      .catch(() => setCustomItems([]));
   }, []);
 
   const activeAgent = agents.find(a => a.id === activeId) || agents[0];
