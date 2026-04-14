@@ -92,29 +92,17 @@ If the page needs filesystem access or secrets, add `frontend/app/api/<name>/rou
 
 Next.js only knows about routes at build time. **A new page file is invisible until the dashboard is rebuilt.** You have everything needed to do this yourself — do not ask the user to run curl.
 
-The agent container has two env vars pre-set for this:
-- `$NANOBOT_API_KEY` — the bearer token
-- `$DASHBOARD_INTERNAL_URL` — the dashboard host on the internal Docker network (typically `http://dashboard:3000`)
+The endpoint is internal-only (rejects anything with `X-Forwarded-*` headers), so no auth header is required from the agent container. Use `$DASHBOARD_INTERNAL_URL` (pre-set, typically `http://dashboard:3000`).
 
 Use the `exec` tool:
 
 ```bash
-curl -X POST \
-  -H "Authorization: Bearer $NANOBOT_API_KEY" \
-  "$DASHBOARD_INTERNAL_URL/api/dashboard/rebuild"
+curl -X POST "$DASHBOARD_INTERNAL_URL/api/dashboard/rebuild"
 ```
 
 Expected output: `{"status":"rebuilding","eta_seconds":90}` (HTTP 202).
 
 **Before you run it, tell the user**: "I'm going to trigger the dashboard rebuild — the site will be unavailable for ~90 seconds. Refresh after that and the new page will be live." Then run the curl. Don't rebuild silently mid-conversation.
-
-If the curl fails with `unauthorized`, the env vars weren't propagated — fall back to asking the user to run it from their host:
-
-```bash
-curl -X POST \
-  -H "Authorization: Bearer $NANOBOT_API_KEY" \
-  http://nanobot-173-212-239-198.traefik.me/api/dashboard/rebuild
-```
 
 ## Custom skills
 

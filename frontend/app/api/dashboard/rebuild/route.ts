@@ -4,20 +4,25 @@ import { NextRequest, NextResponse } from "next/server";
 // the container back up, which re-runs the compose entrypoint:
 // `cp /repo/frontend/. /app/ && npm run build && npx next start`.
 //
-// Auth: shared secret — reuse NANOBOT_API_KEY so agents already
-// configured with it can trigger rebuilds. Without a valid key we
-// refuse to avoid random DoS.
+// Access control: internal network only. Requests arriving through
+// Traefik (public internet) carry X-Forwarded-* headers; direct calls
+// from other containers on the Docker `internal` network don't. We
+// refuse anything with forwarded headers so the public URL can't
+// trigger rebuilds, but containers (e.g. the agent) can POST without
+// auth.
 
 export async function POST(request: NextRequest) {
-  const expected = process.env.NANOBOT_API_KEY || "";
-  const header = request.headers.get("authorization") || "";
-  const supplied = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const forwarded =
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("x-forwarded-proto") ||
+    request.headers.get("x-real-ip");
 
-  if (!expected) {
-    return NextResponse.json({ error: "NANOBOT_API_KEY not configured" }, { status: 503 });
-  }
-  if (!supplied || supplied !== expected) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (forwarded) {
+    return NextResponse.json(
+      { error: "rebuild endpoint is internal-only" },
+      { status: 403 },
+    );
   }
 
   // Respond first, then exit so the client gets a 202 before the process dies.
