@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import type { Agent } from "@/lib/types";
@@ -12,9 +13,19 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+const navIcons: Record<string, React.ReactNode> = {
+  Chat: <path d="M2 5a2 2 0 012-2h8a2 2 0 012 2v5a2 2 0 01-2 2H6l-3 2V5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>,
+  Files: <path d="M3 2h3.5l1 1H11a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3"/>,
+  MCP: <path d="M7 2v3M7 9v3M2 7h3M9 7h3M3.8 3.8l2.1 2.1M8.1 8.1l2.1 2.1M3.8 10.2l2.1-2.1M8.1 5.9l2.1-2.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>,
+  Records: <><path d="M3 2h8a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3"/><path d="M4.5 5.5h5M4.5 7.5h5M4.5 9.5h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></>,
+};
+
 export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
   const { logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  const pathname = usePathname();
+
+  const activeAgent = agents.find(a => a.id === activeId) || agents[0];
 
   const nextTheme = () => {
     const order = ["light", "dark", "system"] as const;
@@ -29,6 +40,13 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
   ) : (
     <><path d="M2 7a5 5 0 1010 0A5 5 0 002 7z" stroke="currentColor" strokeWidth="1.2"/><path d="M7 2v10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></>
   );
+
+  const navItems = activeAgent ? [
+    { label: "Chat", href: `/agent/${activeAgent.id}/chat` },
+    { label: "Files", href: `/agent/${activeAgent.id}/files` },
+    { label: "MCP", href: `/agent/${activeAgent.id}/mcp` },
+    { label: "Records", href: `/agent/${activeAgent.id}/records` },
+  ] : [];
 
   return (
     <>
@@ -56,17 +74,30 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <div className="px-4 pb-2 relative z-10">
-          <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-1">Agents</p>
-        </div>
+        {activeAgent && (
+          <div className="px-4 pb-3 relative z-10">
+            <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl bg-[var(--bg-tertiary)]/50">
+              <span className="w-7 h-7 rounded-lg bg-[var(--accent)] text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0">
+                {activeAgent.name.charAt(0).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold text-[var(--text-primary)] truncate">
+                  {activeAgent.name}
+                </p>
+                <p className="text-[10px] text-[var(--text-tertiary)]">Active agent</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <nav className="flex-1 overflow-y-auto px-3 space-y-0.5 relative z-10">
-          {agents.map((agent, i) => {
-            const isActive = agent.id === activeId;
+          <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 py-2">Workspace</p>
+          {navItems.map((item, i) => {
+            const isActive = pathname.startsWith(item.href);
             return (
               <Link
-                key={agent.id}
-                href={`/agent/${agent.id}/chat`}
+                key={item.href}
+                href={item.href}
                 onClick={onClose}
                 style={{ animationDelay: `${i * 30}ms` }}
                 className={`
@@ -77,13 +108,10 @@ export function Sidebar({ agents, activeId, open, onClose }: SidebarProps) {
                   }
                 `}
               >
-                <span className={`
-                  w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-bold flex-shrink-0 transition-all duration-200
-                  ${isActive ? "bg-[var(--accent)] text-white shadow-[var(--shadow-sm)]" : "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]"}
-                `}>
-                  {agent.name.charAt(0).toUpperCase()}
-                </span>
-                <span className="truncate">{agent.name}</span>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 opacity-80">
+                  {navIcons[item.label]}
+                </svg>
+                <span>{item.label}</span>
               </Link>
             );
           })}
