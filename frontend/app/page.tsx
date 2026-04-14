@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import pb from "@/lib/pocketbase";
 import type { Agent } from "@/lib/types";
 import { Sidebar } from "@/components/Sidebar";
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const connected = searchParams.get("connected");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,9 +23,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && agents.length > 0) {
-      router.replace(`/agent/${agents[0].id}/chat`);
+      const page = connected ? `mcp?connected=${encodeURIComponent(connected)}` : "chat";
+      router.replace(`/agent/${agents[0].id}/${page}`);
     }
-  }, [loading, agents, router]);
+  }, [loading, agents, router, connected]);
 
   return (
     <div className="flex h-screen">
