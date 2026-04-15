@@ -3,7 +3,11 @@ node_modules/
 out/
 .env.local
 
-# Instance-specific pages (users add their own pages under app/ and
-# gitignore the ones they don't want to push upstream).
-app/po/
+# Instance-only code — one convention across the tree.
+# Every hoster of this repo keeps their custom dashboard code here.
+# `(custom)` uses Next.js route groups so URLs don't include the prefix
+# (e.g. `app/(custom)/todos/page.tsx` serves at `/todos`).
+app/(custom)/
+components/custom/
+lib/custom/
 config/custom-nav.json

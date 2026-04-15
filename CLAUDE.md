@@ -123,17 +123,35 @@ If you find yourself adding retry loops, dedup stubs, or JSONL write-through, **
 
 ---
 
-## Custom pages (the agent adding a new `/<name>` page)
+## Custom pages (the `custom/` convention)
 
-The agent's cwd is `/data/.nanobot/workspace`. The dashboard builds from `/app/frontend`. These are different volumes. Pages written to the workspace path are invisible.
+Every hoster of this repo keeps their custom dashboard code in directories named `custom/` (or `(custom)/` for routes). These are gitignored; upstream never touches them.
 
-**Correct pattern** (spelled out in `nanobot/skills/dashboard/SKILL.md`):
-1. Write page to `/app/frontend/app/<name>/page.tsx` (absolute, note leading `/`). Use `import { PageHeader }` (named).
-2. Write/merge `/app/frontend/config/custom-nav.json` with `{"items":[{"label":"...","href":"/<name>"}]}`.
-3. `curl -X POST $DASHBOARD_INTERNAL_URL/api/dashboard/rebuild` — no auth header needed.
-4. Warn user about ~90s downtime, then wait and verify with `curl -s -o /dev/null -w "%{http_code}" http://dashboard:3000/<name>`.
+**File layout:**
 
-If the agent wrote to `workspace/frontend/...` instead, their file still exists — `cp` or `mv` it into `/app/frontend/...` via exec and rebuild.
+```
+frontend/
+  app/
+    (custom)/            ← GITIGNORED; instance routes go here
+      todos/page.tsx     → served at /todos (route group hides the folder name)
+      api/workouts/route.ts → /api/workouts
+  components/custom/     ← GITIGNORED; instance components (import as @/components/custom/…)
+  lib/custom/            ← GITIGNORED; instance hooks + utils (import as @/lib/custom/…)
+  config/custom-nav.json ← GITIGNORED; extra sidebar entries
+```
+
+**Key detail**: `(custom)` uses Next.js **route groups** — parentheses mark it as a folder organizer that is absent from the URL. `app/(custom)/todos/page.tsx` serves at `/todos`, not `/custom/todos`.
+
+**Agent workflow for adding a page:**
+
+1. Write the file to `/app/frontend/app/(custom)/<name>/page.tsx` (absolute path). Use `import { PageHeader }` (named export).
+2. If it needs a sidebar link, append to `/app/frontend/config/custom-nav.json`: `{"items":[{"label":"...","href":"/<name>"}]}`.
+3. `curl -X POST $DASHBOARD_INTERNAL_URL/api/dashboard/rebuild` (internal-only, no auth header).
+4. Warn the user about ~60–90s downtime, then verify: `curl -s -o /dev/null -w "%{http_code}" http://dashboard:3000/<name>`.
+
+**Persistence**: the dashboard container's `/app` is a persistent volume. Files under `(custom)/`, `components/custom/`, etc. survive restarts. On each rebuild, the entrypoint does **additive** cp from the repo (`cp -r /repo/frontend/. /app/`) — it overwrites core files with latest but doesn't delete the instance-only directories, so custom pages keep working after upstream pulls.
+
+**Overriding shipped components**: don't. The convention is "custom adds, never mutates." If you need a different Sidebar, either contribute upstream or fork.
 
 ---
 

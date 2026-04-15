@@ -38,23 +38,27 @@ Edit `config.json` (at `$HOME/.nanobot/config.json`) to point nanobot at a diffe
 
 ## Adding a custom page
 
-> **Critical — where the files live**
-> The agent runs inside the `nanobot-api` container; its default cwd
-> is `/data/.nanobot/workspace`, but the Next.js dashboard is built
-> from the nanobot repo clone at **`/app`** (a shared volume). You
-> MUST write pages and config using absolute paths under `/app`,
-> not relative paths from your workspace. Files under
-> `/data/.nanobot/workspace/frontend/...` are invisible to the
-> dashboard and will do nothing.
+Custom/instance-only code lives in directories named `custom/` (or `(custom)/` for routes). These are gitignored by the repo; upstream never touches them.
 
-### 1. Create the page file at the absolute path
+```
+frontend/
+  app/(custom)/          ← route group: folder name hidden from URL
+    <name>/page.tsx      → served at /<name>
+    api/<name>/route.ts  → /api/<name>
+  components/custom/     ← instance components
+  lib/custom/            ← instance hooks + utils
+  config/custom-nav.json ← extra sidebar entries
+```
+
+### 1. Create the page file
+
+Absolute path on the dashboard container: **`/app/frontend/app/(custom)/<name>/page.tsx`** (note the parentheses around `custom` — they make it a Next.js **route group** so the URL is `/<name>`, not `/custom/<name>`).
 
 ```tsx
-// FILE: /app/frontend/app/<name>/page.tsx   (note the leading /)
 "use client";
 
 import { useEffect, useState } from "react";
-import { PageHeader } from "@/components/PageHeader"; // NAMED import, not default
+import { PageHeader } from "@/components/PageHeader"; // NAMED import
 import pb from "@/lib/pocketbase";
 
 export default function MyPage() {
@@ -77,11 +81,33 @@ export default function MyPage() {
 }
 ```
 
-- `PageHeader` is a **named export** — use `import { PageHeader }`, not `import PageHeader`.
-- URL path is just `/<name>` (no `/custom/` prefix).
-- The sidebar is rendered by the root layout — don't add it again.
+- `PageHeader` is a **named export** — `import { PageHeader }`, not `import PageHeader`.
+- URL is just `/<name>` — route groups don't appear in URLs.
+- Sidebar is rendered by the root layout; don't include it here.
 
-### 2. Register the sidebar link at the absolute path
+### 2. Colocated helpers
+
+If the page needs its own hook/component, colocate:
+
+```
+frontend/app/(custom)/todos/
+  page.tsx
+  useTodos.ts      ← import as "./useTodos"
+  TodoCard.tsx     ← import as "./TodoCard"
+```
+
+All under `(custom)/`, all gitignored.
+
+### 3. Shared instance code
+
+If multiple custom pages share a hook/component, put it in `components/custom/` or `lib/custom/`:
+
+- `frontend/components/custom/TodoCard.tsx` → `import { TodoCard } from "@/components/custom/TodoCard"`
+- `frontend/lib/custom/useTodos.ts` → `import { useTodos } from "@/lib/custom/useTodos"`
+
+These dirs are also gitignored.
+
+### 4. Register the sidebar link
 
 File: **`/app/frontend/config/custom-nav.json`** (create if missing).
 
@@ -93,7 +119,7 @@ File: **`/app/frontend/config/custom-nav.json`** (create if missing).
 }
 ```
 
-The `href` must match the page URL (`/<name>`). Available icons: `Chat`, `Files`, `MCP`, `Records` (fallback).
+The `href` is the URL without any prefix. Available icons: `Chat`, `Files`, `MCP`, `Records` (fallback).
 
 ### 3. Optional: server-side API route
 
