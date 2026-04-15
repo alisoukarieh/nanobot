@@ -53,7 +53,17 @@ def get_cli_history_path() -> Path:
 
 
 def get_bridge_install_dir() -> Path:
-    """Return the shared WhatsApp bridge installation directory."""
+    """Return the WhatsApp bridge installation directory.
+
+    Prefer a prebuilt bridge baked into the image at `/app/bridge`
+    (the Dockerfile builds it there via `npm install && npm run build`).
+    Fall back to a user-local install at `~/.nanobot/bridge` which the
+    WhatsApp channel will build on first use when running from a pip
+    install outside the official image.
+    """
+    prebuilt = Path("/app/bridge")
+    if (prebuilt / "dist" / "index.js").exists():
+        return prebuilt
     return Path.home() / ".nanobot" / "bridge"
 
 
