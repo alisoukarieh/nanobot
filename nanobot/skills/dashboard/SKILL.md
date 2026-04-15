@@ -38,14 +38,23 @@ Edit `config.json` (at `$HOME/.nanobot/config.json`) to point nanobot at a diffe
 
 ## Adding a custom page
 
-### 1. Create the page file
+> **Critical — where the files live**
+> The agent runs inside the `nanobot-api` container; its default cwd
+> is `/data/.nanobot/workspace`, but the Next.js dashboard is built
+> from the nanobot repo clone at **`/app`** (a shared volume). You
+> MUST write pages and config using absolute paths under `/app`,
+> not relative paths from your workspace. Files under
+> `/data/.nanobot/workspace/frontend/...` are invisible to the
+> dashboard and will do nothing.
+
+### 1. Create the page file at the absolute path
 
 ```tsx
-// frontend/app/<name>/page.tsx
+// FILE: /app/frontend/app/<name>/page.tsx   (note the leading /)
 "use client";
 
 import { useEffect, useState } from "react";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader } from "@/components/PageHeader"; // NAMED import, not default
 import pb from "@/lib/pocketbase";
 
 export default function MyPage() {
@@ -68,21 +77,23 @@ export default function MyPage() {
 }
 ```
 
-The sidebar is rendered by the root layout — don't add it again.
+- `PageHeader` is a **named export** — use `import { PageHeader }`, not `import PageHeader`.
+- URL path is just `/<name>` (no `/custom/` prefix).
+- The sidebar is rendered by the root layout — don't add it again.
 
-### 2. Register the sidebar link
+### 2. Register the sidebar link at the absolute path
 
-Edit `frontend/config/custom-nav.json` (copy from `custom-nav.example.json` if it doesn't exist):
+File: **`/app/frontend/config/custom-nav.json`** (create if missing).
 
 ```json
 {
   "items": [
-    { "label": "My Page", "href": "/my-page", "icon": "records" }
+    { "label": "My Page", "href": "/my-page", "icon": "Records" }
   ]
 }
 ```
 
-Available icons: `Chat`, `Files`, `MCP`, `Records` (fallback).
+The `href` must match the page URL (`/<name>`). Available icons: `Chat`, `Files`, `MCP`, `Records` (fallback).
 
 ### 3. Optional: server-side API route
 
