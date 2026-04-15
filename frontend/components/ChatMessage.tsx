@@ -7,22 +7,22 @@ interface ChatMessageProps {
 
 export function ChatMessage({ role, content }: ChatMessageProps) {
   const isUser = role === "user";
+  const label = isUser ? "YOU" : "NB";
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} animate-in`}>
-      {!isUser && (
-        <div className="w-6 h-6 rounded-lg bg-[var(--accent)] flex items-center justify-center flex-shrink-0 mt-1 mr-2.5">
-          <span className="text-white text-[8px] font-bold">nb</span>
-        </div>
-      )}
+    <div className="animate-in flex gap-3">
+      <div className="flex-shrink-0 w-8 pt-[3px]">
+        <span className="font-mono text-[9px] font-semibold tracking-[0.15em] text-[var(--text-tertiary)]">
+          {label}
+        </span>
+      </div>
       <div
         className={`
-          min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[65%]
-          px-3.5 sm:px-4 py-3 text-[13.5px] leading-[1.65]
-          whitespace-pre-wrap break-words
+          flex-1 min-w-0 px-3.5 py-2.5 text-[13px] leading-[1.65]
+          whitespace-pre-wrap break-words border
           ${isUser
-            ? "bg-gradient-to-br from-[#059669] to-[#047857] text-white rounded-2xl rounded-br-md shadow-[var(--shadow-sm)]"
-            : "bg-[var(--assistant-bg)] text-[var(--text-primary)] rounded-2xl rounded-tl-md border border-[var(--border)] shadow-[var(--shadow-xs)]"
+            ? "bg-[var(--user-bubble)] text-[var(--user-bubble-text)] border-[var(--user-bubble)]"
+            : "bg-[var(--assistant-bg)] text-[var(--text-primary)] border-[var(--border)]"
           }
         `}
       >

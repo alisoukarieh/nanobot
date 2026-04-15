@@ -45,10 +45,10 @@ export default function FilesPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Files" subtitle={agent?.workspace_path} />
+      <PageHeader title="Files" code="§ 02" subtitle={agent?.workspace_path} />
       {!agent ? (
         <div className="flex-1 flex items-center justify-center">
-          <div className="w-5 h-5 border-2 border-[var(--border-strong)] border-t-[var(--accent)] rounded-full animate-spin" />
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-[var(--text-tertiary)]">Loading…</span>
         </div>
       ) : (
         <div className="flex-1 flex flex-col sm:flex-row min-h-0">
@@ -69,9 +69,9 @@ export default function FilesPage() {
             {selectedFile && (
               <button
                 onClick={() => setSelectedFile("")}
-                className="sm:hidden px-4 py-2 text-xs text-[var(--accent)] border-b border-[var(--border)]"
+                className="sm:hidden px-4 py-2 font-mono text-[10px] font-semibold tracking-[0.2em] uppercase text-[var(--text-primary)] border-b border-[var(--border)] text-left"
               >
-                ← Back to files
+                ← Back
               </button>
             )}
             <FileEditor filePath={selectedFile} workspacePath={agent.workspace_path} />

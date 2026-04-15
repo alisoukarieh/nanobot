@@ -63,7 +63,7 @@ export function useChat({ sessionKey, pageSize = 50 }: UseChatOptions) {
   }, [sessionKey, pageSize, messages, loadingOlder, hasMore]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, model?: string) => {
       if (sending) return;
 
       setMessages((msgs) => [
@@ -73,10 +73,12 @@ export function useChat({ sessionKey, pageSize = 50 }: UseChatOptions) {
       setSending(true);
 
       try {
+        const body: Record<string, unknown> = { messages: [{ role: "user", content: text }] };
+        if (model && model.trim()) body.model = model.trim();
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: [{ role: "user", content: text }] }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         const content =

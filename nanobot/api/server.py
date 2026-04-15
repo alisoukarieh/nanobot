@@ -90,9 +90,16 @@ async def handle_chat_completions(request: web.Request) -> web.Response:
 
     agent_loop = request.app["agent_loop"]
     timeout_s: float = request.app.get("request_timeout", 120.0)
-    model_name: str = request.app.get("model_name", "nanobot")
-    if (requested_model := body.get("model")) and requested_model != model_name:
-        return _error_json(400, f"Only configured model '{model_name}' is available")
+    default_model_name: str = request.app.get("model_name", "nanobot")
+    requested_model = body.get("model")
+    # Only treat as an override when it's a real model id (contains "/"),
+    # not the placeholder reported by /v1/models.
+    model_override = (
+        requested_model
+        if isinstance(requested_model, str) and "/" in requested_model and requested_model != default_model_name
+        else None
+    )
+    model_name = model_override or default_model_name
 
     session_key = f"api:{body['session_id']}" if body.get("session_id") else API_SESSION_KEY
     session_locks: dict[str, asyncio.Lock] = request.app["session_locks"]
@@ -111,6 +118,7 @@ async def handle_chat_completions(request: web.Request) -> web.Response:
                         session_key=session_key,
                         channel="api",
                         chat_id=API_CHAT_ID,
+                        model_override=model_override,
                     ),
                     timeout=timeout_s,
                 )

@@ -58,26 +58,29 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <><path d="M2 7a5 5 0 1010 0A5 5 0 002 7z" stroke="currentColor" strokeWidth="1.2"/><path d="M7 2v10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></>
     );
 
-  const NavLink = ({ item, delay }: { item: { label: string; href: string; icon?: string }; delay: number }) => {
+  const NavLink = ({ item, index }: { item: { label: string; href: string; icon?: string }; index: number }) => {
     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+    const code = String(index + 1).padStart(2, "0");
     return (
       <Link
         href={item.href}
         onClick={onClose}
-        style={{ animationDelay: `${delay}ms` }}
         className={`
-          animate-in flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13px] transition-all duration-200
+          group flex items-center gap-3 px-3 py-2.5 text-[12px] transition-colors border-l-2
           ${
             isActive
-              ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium shadow-[inset_0_0_0_1px_var(--accent-glow)]"
-              : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 hover:text-[var(--text-primary)]"
+              ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text-primary)]"
+              : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"
           }
         `}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 opacity-80">
+        <span className="font-mono text-[9px] font-semibold tracking-[0.15em] text-[var(--text-tertiary)] w-5">
+          {code}
+        </span>
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
           {navIcons[item.icon || item.label] || navIcons.Records}
         </svg>
-        <span>{item.label}</span>
+        <span className="uppercase tracking-[0.1em] text-[11px] font-medium">{item.label}</span>
       </Link>
     );
   };
@@ -85,56 +88,57 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
       {open && (
-        <div className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={onClose} />
       )}
       <aside
         className={`
           fixed md:static inset-y-0 left-0 z-50
-          w-[260px] md:w-[224px] h-screen flex flex-col
-          border-r border-[var(--border)] bg-[var(--sidebar-bg)] glass relative noise
-          transition-transform duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]
+          w-[240px] md:w-[220px] h-screen flex flex-col
+          border-r border-[var(--border)] bg-[var(--sidebar-bg)]
+          transition-transform duration-200
           ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
-        <div className="px-5 pt-6 pb-4 flex items-center justify-between relative z-10">
+        <div className="px-4 h-14 flex items-center justify-between border-b border-[var(--border)]">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center">
-              <span className="text-white text-[11px] font-bold tracking-tight">nb</span>
+            <div className="w-6 h-6 border border-[var(--text-primary)] flex items-center justify-center">
+              <span className="text-[var(--text-primary)] text-[9px] font-bold tracking-tight font-mono">NB</span>
             </div>
-            <span className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.02em]">
-              nanobot
+            <span className="text-[12px] font-semibold text-[var(--text-primary)] tracking-[0.15em] uppercase">
+              Nanobot
             </span>
           </div>
-          <button onClick={onClose} className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-all">
+          <button onClick={onClose} className="md:hidden w-7 h-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M11 3L3 11M3 3l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 space-y-0.5 relative z-10">
-          <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 py-2">
-            Workspace
-          </p>
-          {CORE_NAV.map((item, i) => <NavLink key={item.href} item={item} delay={i * 30} />)}
+        <nav className="flex-1 overflow-y-auto py-3">
+          <p className="label-spec px-3 py-2">§ Workspace</p>
+          <div className="flex flex-col">
+            {CORE_NAV.map((item, i) => <NavLink key={item.href} item={item} index={i} />)}
+          </div>
 
           {customItems.length > 0 && (
             <>
-              <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] px-2.5 pt-4 pb-2">
-                Extras
-              </p>
-              {customItems.map((item, i) => <NavLink key={item.href} item={item} delay={i * 30} />)}
+              <div className="h-px bg-[var(--border)] mx-3 my-3" />
+              <p className="label-spec px-3 py-2">§ Extras</p>
+              <div className="flex flex-col">
+                {customItems.map((item, i) => <NavLink key={item.href} item={item} index={CORE_NAV.length + i} />)}
+              </div>
             </>
           )}
         </nav>
 
-        <div className="px-3 py-3 border-t border-[var(--border)] space-y-0.5 relative z-10">
-          <button onClick={nextTheme} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 transition-all">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-50">{themeIcon}</svg>
+        <div className="border-t border-[var(--border)]">
+          <button onClick={nextTheme} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors border-b border-[var(--border)]">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">{themeIcon}</svg>
             {theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light"}
           </button>
-          <button onClick={logout} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 transition-all">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-50">
+          <button onClick={logout} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
               <path d="M5.5 12.5H3a1 1 0 01-1-1v-9a1 1 0 011-1h2.5M9.5 10l3-3-3-3M12.5 7H5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             Sign out

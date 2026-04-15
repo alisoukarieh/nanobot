@@ -45,41 +45,46 @@ export function FileEditor({ filePath, workspacePath }: FileEditorProps) {
   if (!filePath) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 animate-in">
-        <div className="w-12 h-12 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-[var(--text-tertiary)]">
-            <path d="M4 2h7l5 5v10a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2zM11 2v5h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+        <div className="w-12 h-12 border border-[var(--border)] flex items-center justify-center">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="text-[var(--text-tertiary)]">
+            <path d="M4 2h7l5 5v10a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2zM11 2v5h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
-        <p className="text-[var(--text-tertiary)] text-[13px]">Select a file to edit</p>
+        <p className="label-spec">§ Select a file</p>
       </div>
     );
   }
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] bg-[var(--bg-primary)]">
+      <div className="flex items-center justify-between px-4 h-11 border-b border-[var(--border)] bg-[var(--bg-primary)]">
         <div className="flex items-center gap-2 min-w-0">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-[var(--text-tertiary)] flex-shrink-0">
-            <path d="M3 1h4l3 3v6a1 1 0 01-1 1H3a1 1 0 01-1-1V2a1 1 0 011-1zM7 1v3h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <span className="font-mono text-[10px] font-semibold tracking-[0.2em] uppercase text-[var(--text-tertiary)]">File</span>
           <span className="text-[12px] text-[var(--text-secondary)] truncate font-mono">{filePath}</span>
-          {isDirty && <span className="w-2 h-2 rounded-full bg-[var(--accent)] flex-shrink-0" />}
+          {isDirty && <span className="font-mono text-[10px] text-[var(--accent)] flex-shrink-0">●</span>}
         </div>
-        <div className="flex items-center gap-2.5 flex-shrink-0 ml-3">
-          {saved && <span className="text-[11px] text-emerald-500 font-medium animate-in">Saved</span>}
-          <button onClick={save} disabled={!isDirty || saving}
-            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-[var(--accent)] text-white hover:brightness-110 disabled:opacity-20 disabled:cursor-default transition-all duration-150">
-            {saving ? "..." : "Save"}
+        <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+          {saved && <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-[var(--text-secondary)] animate-in">✓ Saved</span>}
+          <button
+            onClick={save}
+            disabled={!isDirty || saving}
+            className="px-3 py-1.5 font-mono text-[10px] font-semibold tracking-[0.2em] uppercase bg-[var(--accent)] text-[var(--bg-primary)] border border-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-20 disabled:cursor-default transition-colors"
+          >
+            {saving ? "…" : "Save"}
           </button>
         </div>
       </div>
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
-          <div className="w-4 h-4 border-[1.5px] border-[var(--border-strong)] border-t-[var(--accent)] rounded-full animate-spin" />
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-[var(--text-tertiary)]">Loading…</span>
         </div>
       ) : (
-        <textarea value={content} onChange={(e) => setContent(e.target.value)} spellCheck={false}
-          className="flex-1 w-full p-5 resize-none font-mono text-[13px] leading-[1.8] tabular-nums bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none" />
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          spellCheck={false}
+          className="flex-1 w-full p-5 resize-none font-mono text-[13px] leading-[1.7] tabular-nums bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none border-0"
+        />
       )}
     </div>
   );

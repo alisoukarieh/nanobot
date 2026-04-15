@@ -14,8 +14,8 @@ export default function Home() {
   }, [router, connected]);
 
   return (
-    <main className="h-full flex items-center justify-center bg-[var(--bg-secondary)]">
-      <p className="text-[var(--text-tertiary)] text-sm">Loading...</p>
+    <main className="h-full flex items-center justify-center bg-[var(--bg-primary)]">
+      <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-[var(--text-tertiary)]">Loading…</p>
     </main>
   );
 }
