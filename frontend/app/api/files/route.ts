@@ -73,3 +73,27 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "write failed" }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  const workspace = request.nextUrl.searchParams.get("workspace");
+  const filePath = request.nextUrl.searchParams.get("path");
+
+  if (!workspace || !filePath) {
+    return NextResponse.json(
+      { error: "workspace and path required" },
+      { status: 400 }
+    );
+  }
+
+  const resolved = resolveSafe(workspace, filePath);
+  if (!resolved) {
+    return NextResponse.json({ error: "invalid path" }, { status: 400 });
+  }
+
+  try {
+    await fs.rm(resolved, { recursive: true, force: true });
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "delete failed" }, { status: 500 });
+  }
+}
