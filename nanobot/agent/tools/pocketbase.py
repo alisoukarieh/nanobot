@@ -78,11 +78,28 @@ class PocketBaseClient:
     # ── Collection operations ────────────────────────────────────────
 
     async def create_collection(self, name: str, fields: list[dict[str, Any]]) -> dict[str, Any]:
-        """Create a new collection with the given field definitions."""
+        """Create a new collection accessible to any authenticated user.
+
+        PocketBase defaults new collections to superuser-only (rules=null),
+        which breaks every skill-backed UI because dashboard users aren't
+        superusers. Every new collection gets `@request.auth.id != ""` on
+        all five rules so any logged-in `users` record can CRUD. If a
+        caller needs tighter rules, they can PATCH the collection after.
+        """
+        auth_rule = '@request.auth.id != ""'
         return await self._request(
             "POST",
             self._COLLECTIONS_PATH,
-            json={"name": name, "type": "base", "fields": fields},
+            json={
+                "name": name,
+                "type": "base",
+                "fields": fields,
+                "listRule": auth_rule,
+                "viewRule": auth_rule,
+                "createRule": auth_rule,
+                "updateRule": auth_rule,
+                "deleteRule": auth_rule,
+            },
         )
 
     async def list_collections(self) -> list[dict[str, Any]]:
