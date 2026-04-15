@@ -81,13 +81,6 @@ export class WhatsAppClient {
 
     console.log(`Using Baileys version: ${version.join('.')}`);
 
-    // If WA_PAIRING_PHONE is set and we aren't registered yet, use phone-number
-    // pairing instead of QR. User enters the 8-digit code in WhatsApp:
-    //   Settings → Linked Devices → Link with phone number instead.
-    // Phone must be E.164 digits-only (e.g. "14155551234"). No "+".
-    const pairingPhone = (process.env.WA_PAIRING_PHONE || '').replace(/[^\d]/g, '');
-    const usePairingCode = pairingPhone.length > 0 && !state.creds.registered;
-
     // Create socket following OpenClaw's pattern
     this.sock = makeWASocket({
       auth: {
@@ -109,32 +102,12 @@ export class WhatsAppClient {
       });
     }
 
-    // Request a pairing code if configured (must be after socket exists, before any QR event).
-    if (usePairingCode) {
-      setTimeout(async () => {
-        try {
-          const code: string = await this.sock.requestPairingCode(pairingPhone);
-          const pretty = code.match(/.{1,4}/g)?.join('-') || code;
-          console.log('\n🔗 WhatsApp pairing code: ' + pretty);
-          console.log('   In your WhatsApp app: Settings → Linked Devices → Link a device');
-          console.log('   → "Link with phone number instead" → enter: ' + pretty + '\n');
-          // Also persist to a file so it can be fetched via /api/files without log access.
-          try {
-            await writeFile(join(this.options.authDir, 'pairing-code.txt'), pretty, 'utf-8');
-          } catch {}
-          this.options.onStatus('pairing_code:' + pretty);
-        } catch (err) {
-          console.error('Failed to request pairing code:', err);
-        }
-      }, 3000);
-    }
-
     // Handle connection updates
     this.sock.ev.on('connection.update', async (update: any) => {
       const { connection, lastDisconnect, qr } = update;
 
-      if (qr && !usePairingCode) {
-        // Display QR code in terminal (only when not using pairing code)
+      if (qr) {
+        // Display QR code in terminal
         console.log('\n📱 Scan this QR code with WhatsApp (Linked Devices):\n');
         qrcode.generate(qr, { small: true });
         this.options.onQR(qr);
