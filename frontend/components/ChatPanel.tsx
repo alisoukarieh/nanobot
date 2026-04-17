@@ -11,25 +11,9 @@ interface ChatPanelProps {
 const STICK_TO_BOTTOM_THRESHOLD = 80; // px from bottom
 const LOAD_OLDER_THRESHOLD = 120; // px from top
 
-const MODEL_STORAGE_KEY = "nanobot:chat:model";
-
 export function ChatPanel({ sessionKey }: ChatPanelProps) {
   const { messages, loading, loadingOlder, hasMore, sending, send, loadOlder } = useChat({ sessionKey });
   const [input, setInput] = useState("");
-  const [model, setModel] = useState("");
-
-  useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem(MODEL_STORAGE_KEY) : null;
-    if (stored) setModel(stored);
-  }, []);
-
-  const updateModel = (value: string) => {
-    setModel(value);
-    if (typeof window !== "undefined") {
-      if (value.trim()) localStorage.setItem(MODEL_STORAGE_KEY, value.trim());
-      else localStorage.removeItem(MODEL_STORAGE_KEY);
-    }
-  };
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -86,14 +70,14 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
     const text = input.trim();
     if (!text) return;
     stickToBottomRef.current = true; // always pin to bottom when user sends
-    send(text, model || undefined);
+    send(text);
     setInput("");
   };
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-primary)]">
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 space-y-3 sm:space-y-4">
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 pt-4 sm:pt-6 pb-2 space-y-3 sm:space-y-4">
           {hasMore && (
             <div className="flex items-center justify-center py-3">
               {loadingOlder ? (
@@ -156,33 +140,7 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
       </div>
 
       <div className="border-t border-[var(--border)] bg-[var(--bg-primary)]">
-        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 py-2.5 sm:py-3 space-y-2">
-          <div className="flex items-center gap-2 border border-[var(--border)] px-2.5 py-1.5">
-            <span className="font-mono text-[9px] font-semibold tracking-[0.2em] uppercase text-[var(--text-tertiary)]">Model</span>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => updateModel(e.target.value)}
-              placeholder="default (from config)"
-              spellCheck={false}
-              className="
-                flex-1 min-w-0 px-1 text-[12px] bg-transparent
-                text-[var(--text-primary)]
-                placeholder:text-[var(--text-tertiary)]
-                focus:outline-none
-              "
-            />
-            {model && (
-              <button
-                type="button"
-                onClick={() => updateModel("")}
-                className="font-mono text-[9px] tracking-[0.2em] uppercase text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                title="Reset to config default"
-              >
-                Reset
-              </button>
-            )}
-          </div>
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 py-2">
           <form onSubmit={handleSubmit} className="relative flex">
             <input
               type="text"
