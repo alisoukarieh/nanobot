@@ -155,6 +155,28 @@ async def handle_chat_completions(request: web.Request) -> web.Response:
         logger.exception("Unexpected API lock error for session {}", session_key)
         return _error_json(500, "Internal server error", err_type="server_error")
 
+    # Optional TTS: when body has "tts": true, return an audio file instead of JSON text.
+    if body.get("tts"):
+        groq_key = request.app.get("groq_api_key", "")
+        if not groq_key:
+            return _error_json(503, "TTS not configured (missing providers.groq.apiKey)")
+        from nanobot.providers.transcription import GroqTtsProvider, DEFAULT_TTS_FORMAT, DEFAULT_TTS_VOICE
+        voice = body.get("tts_voice") or DEFAULT_TTS_VOICE
+        fmt = body.get("tts_format") or DEFAULT_TTS_FORMAT
+        result = await GroqTtsProvider(api_key=groq_key).synthesize(response_text, voice=voice, fmt=fmt)
+        if result is None:
+            return _error_json(502, "TTS generation failed")
+        audio_bytes, mime = result
+        return web.Response(
+            body=audio_bytes,
+            content_type=mime,
+            headers={
+                "X-Nanobot-Transcript": response_text[:2000],
+                "X-Nanobot-Model": model_name,
+                "Content-Disposition": f'inline; filename="reply.{fmt}"',
+            },
+        )
+
     return web.json_response(_chat_completion_response(response_text, model_name))
 
 
@@ -231,6 +253,7 @@ def create_app(
     model_name: str = "nanobot",
     request_timeout: float = 120.0,
     api_key: str = "",
+    groq_api_key: str = "",
 ) -> web.Application:
     """Create the aiohttp application.
 
@@ -239,6 +262,7 @@ def create_app(
         model_name: Model name reported in responses.
         request_timeout: Per-request timeout in seconds.
         api_key: If set, requests must include Authorization: Bearer <key>.
+        groq_api_key: Enables "tts": true on /v1/chat/completions when set.
     """
     app = web.Application(middlewares=[cors_middleware, api_key_middleware])
     app["agent_loop"] = agent_loop
@@ -246,6 +270,7 @@ def create_app(
     app["request_timeout"] = request_timeout
     app["session_locks"] = {}  # per-user locks, keyed by session_key
     app["api_key"] = api_key
+    app["groq_api_key"] = groq_api_key
 
     app.router.add_post("/v1/chat/completions", handle_chat_completions)
     app.router.add_get("/v1/models", handle_models)

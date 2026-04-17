@@ -620,6 +620,7 @@ def serve(
     api_app = create_app(
         agent_loop, model_name=model_name, request_timeout=timeout,
         api_key=runtime_config.api.api_key,
+        groq_api_key=runtime_config.providers.groq.api_key,
     )
 
     async def on_startup(_app):
