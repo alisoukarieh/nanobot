@@ -269,9 +269,13 @@ class WhatsAppChannel(BaseChannel):
                     content = "[Voice Message: Audio not available]"
 
             # Build content tags matching Telegram's pattern: [image: /path] or [file: /path]
+            # Audio files are skipped because their transcription already became the content;
+            # attaching the raw OGG path would make the agent try to read a binary it can't decode.
             if media_paths:
                 for p in media_paths:
                     mime, _ = mimetypes.guess_type(p)
+                    if mime and mime.startswith("audio/"):
+                        continue
                     media_type = "image" if mime and mime.startswith("image/") else "file"
                     media_tag = f"[{media_type}: {p}]"
                     content = f"{content}\n{media_tag}" if content else media_tag
