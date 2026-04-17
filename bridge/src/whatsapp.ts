@@ -167,7 +167,9 @@ export class WhatsAppClient {
           if (path) mediaPaths.push(path);
         } else if (unwrapped.audioMessage) {
           fallbackContent = '[Voice Message]';
-          const path = await this.downloadMedia(msg, unwrapped.audioMessage.mimetype ?? undefined);
+          // Baileys sometimes omits the mimetype; WhatsApp voice notes are always OGG/Opus.
+          const mime = unwrapped.audioMessage.mimetype || 'audio/ogg; codecs=opus';
+          const path = await this.downloadMedia(msg, mime);
           if (path) mediaPaths.push(path);
         }
 

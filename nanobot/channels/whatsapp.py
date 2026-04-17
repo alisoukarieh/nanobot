@@ -255,27 +255,36 @@ class WhatsAppChannel(BaseChannel):
             # Extract media paths (images/documents/videos downloaded by the bridge)
             media_paths = data.get("media") or []
 
-            # Handle voice transcription if it's a voice message
-            if content == "[Voice Message]":
-                if media_paths:
-                    logger.info("Transcribing voice message from {}...", sender_id)
-                    transcription = await self.transcribe_audio(media_paths[0])
-                    if transcription:
-                        content = transcription
-                        logger.info("Transcribed voice from {}: {}...", sender_id, transcription[:50])
-                    else:
-                        content = "[Voice Message: Transcription failed]"
-                else:
-                    content = "[Voice Message: Audio not available]"
+            def _is_audio_path(p: str) -> bool:
+                mime, _ = mimetypes.guess_type(p)
+                if mime and mime.startswith("audio/"):
+                    return True
+                # WhatsApp voice notes are OGG/Opus even when the bridge didn't set a mime
+                return p.lower().endswith((".ogg", ".oga", ".opus", ".m4a", ".mp3"))
 
-            # Build content tags matching Telegram's pattern: [image: /path] or [file: /path]
-            # Audio files are skipped because their transcription already became the content;
-            # attaching the raw OGG path would make the agent try to read a binary it can't decode.
+            # Voice messages: transcribe in-place, then remove the audio from the
+            # attachment list so nothing downstream references the binary file.
+            # The transcript IS the user's message — no sentinel, no [file:] tag.
+            audio_paths = [p for p in media_paths if _is_audio_path(p)]
+            if audio_paths:
+                audio_path = audio_paths[0]
+                logger.info("Transcribing voice message from {}...", sender_id)
+                transcription = await self.transcribe_audio(audio_path)
+                if transcription:
+                    content = transcription
+                    logger.info("Transcribed voice from {}: {}...", sender_id, transcription[:50])
+                elif content == "[Voice Message]" or not content:
+                    content = "[Voice Message: Transcription failed]"
+                # Drop all audio entries — consumed by transcription
+                media_paths = [p for p in media_paths if not _is_audio_path(p)]
+            elif content == "[Voice Message]":
+                # Bridge reported a voice message but no file downloaded
+                content = "[Voice Message: Audio not available]"
+
+            # Build content tags for remaining (non-audio) media
             if media_paths:
                 for p in media_paths:
                     mime, _ = mimetypes.guess_type(p)
-                    if mime and mime.startswith("audio/"):
-                        continue
                     media_type = "image" if mime and mime.startswith("image/") else "file"
                     media_tag = f"[{media_type}: {p}]"
                     content = f"{content}\n{media_tag}" if content else media_tag
