@@ -11,9 +11,15 @@ interface ChatPanelProps {
 const STICK_TO_BOTTOM_THRESHOLD = 80; // px from bottom
 const LOAD_OLDER_THRESHOLD = 120; // px from top
 
+type MicState = "idle" | "recording" | "transcribing";
+
 export function ChatPanel({ sessionKey }: ChatPanelProps) {
   const { messages, loading, loadingOlder, hasMore, sending, send, loadOlder } = useChat({ sessionKey });
   const [input, setInput] = useState("");
+  const [mic, setMic] = useState<MicState>("idle");
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -73,6 +79,73 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
     send(text);
     setInput("");
   };
+
+  const startRecording = async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      alert("Microphone not supported in this browser");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
+        chunksRef.current = [];
+        if (blob.size === 0) {
+          setMic("idle");
+          return;
+        }
+        setMic("transcribing");
+        try {
+          const form = new FormData();
+          const ext = (rec.mimeType || "audio/webm").includes("ogg") ? "ogg" : "webm";
+          form.append("file", blob, `audio.${ext}`);
+          const res = await fetch("/api/transcribe", { method: "POST", body: form });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.text) {
+            setInput((prev) => (prev.trim() ? `${prev.trim()} ${data.text}` : data.text));
+          } else if (!res.ok) {
+            alert(data.error || "Transcription failed");
+          }
+        } catch {
+          alert("Transcription failed");
+        } finally {
+          setMic("idle");
+        }
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setMic("recording");
+    } catch {
+      setMic("idle");
+      alert("Microphone access denied");
+    }
+  };
+
+  const stopRecording = () => {
+    recorderRef.current?.stop();
+  };
+
+  const toggleMic = () => {
+    if (mic === "idle") void startRecording();
+    else if (mic === "recording") stopRecording();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recorderRef.current && recorderRef.current.state !== "inactive") {
+        recorderRef.current.stop();
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-primary)]">
@@ -146,8 +219,8 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Message nanobot..."
-              disabled={sending}
+              placeholder={mic === "recording" ? "Recording…" : mic === "transcribing" ? "Transcribing…" : "Message nanobot..."}
+              disabled={sending || mic !== "idle"}
               className="
                 flex-1 min-w-0 px-3.5 py-3 text-[13px]
                 bg-[var(--input-bg)] border border-[var(--border)] border-r-0
@@ -159,8 +232,35 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
               "
             />
             <button
+              type="button"
+              onClick={toggleMic}
+              disabled={sending || mic === "transcribing"}
+              title={mic === "recording" ? "Stop recording" : mic === "transcribing" ? "Transcribing…" : "Record voice"}
+              className={`
+                px-3.5 flex items-center justify-center
+                border border-[var(--border)] border-r-0
+                transition-colors disabled:opacity-40 disabled:cursor-default
+                ${mic === "recording" ? "bg-red-500/10 text-red-500" : "bg-[var(--input-bg)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"}
+              `}
+            >
+              {mic === "transcribing" ? (
+                <svg className="animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" strokeDasharray="8 20" strokeLinecap="round" />
+                </svg>
+              ) : mic === "recording" ? (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <rect x="2" y="2" width="8" height="8" fill="currentColor" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="5" y="1.5" width="4" height="7" rx="2" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M3 6.5a4 4 0 008 0M7 10.5v2M5 12.5h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
+            <button
               type="submit"
-              disabled={sending || !input.trim()}
+              disabled={sending || mic !== "idle" || !input.trim()}
               className="
                 px-5 flex items-center justify-center gap-2
                 bg-[var(--accent)] text-[var(--bg-primary)]
