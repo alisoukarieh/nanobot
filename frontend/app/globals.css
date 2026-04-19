@@ -91,6 +91,18 @@ body {
   }
 }
 
+/* Safe-area helpers — only in standalone PWA mode, where the browser's own
+   toolbar isn't there to pad things for us. In a regular browser tab, the
+   toolbar already reserves that space and stacking env() on top creates a
+   huge dead zone below the content. */
+:root { --safe-top: 0px; --safe-bottom: 0px; }
+@media (display-mode: standalone) {
+  :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
+}
+.pt-safe { padding-top: var(--safe-top); }
+.pb-safe { padding-bottom: var(--safe-bottom); }
+.h-safe-top { height: var(--safe-top); }
+
 ::selection { background: var(--accent); color: var(--bg-primary); }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

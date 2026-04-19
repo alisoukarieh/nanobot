@@ -96,7 +96,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           w-[260px] md:w-[220px] h-dvh flex flex-col
           border-r border-[var(--border)] bg-[var(--sidebar-bg)]
           transition-transform duration-200
-          pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
+          pt-safe pb-safe
           ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
