@@ -212,8 +212,8 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
         </div>
       </div>
 
-      <div className="border-t border-[var(--border)] bg-[var(--bg-primary)] pb-safe">
-        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 py-2">
+      <div className="border-t border-[var(--border)] bg-[var(--bg-primary)] pt-2 pb-[max(0.5rem,var(--safe-bottom))]">
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5">
           <form onSubmit={handleSubmit} className="relative flex">
             <input
               type="text"

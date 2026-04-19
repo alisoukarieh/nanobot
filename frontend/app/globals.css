@@ -102,7 +102,6 @@ body {
 }
 .pt-safe { padding-top: var(--safe-top); }
 .pb-safe { padding-bottom: var(--safe-bottom); }
-.h-safe-top { height: var(--safe-top); }
 
 /* App-height utility. Tracks window.innerHeight via <ViewportHeight/> so iOS
    Safari's buggy dvh after keyboard dismiss doesn't leave a gap. 100dvh
