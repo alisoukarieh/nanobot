@@ -149,7 +149,7 @@ export default function McpPage() {
 
           {entries.length > 0 && (
             <div className="border border-[var(--border)]">
-              <div className="border-b border-[var(--border)] grid grid-cols-[60px_1fr_100px_100px] gap-3 px-4 py-2 bg-[var(--bg-secondary)]">
+              <div className="hidden sm:grid border-b border-[var(--border)] grid-cols-[60px_1fr_100px_100px] gap-3 px-4 py-2 bg-[var(--bg-secondary)]">
                 <span className="font-mono text-[9px] font-semibold tracking-[0.2em] uppercase text-[var(--text-tertiary)]">Code</span>
                 <span className="font-mono text-[9px] font-semibold tracking-[0.2em] uppercase text-[var(--text-tertiary)]">Server</span>
                 <span className="font-mono text-[9px] font-semibold tracking-[0.2em] uppercase text-[var(--text-tertiary)]">Transport</span>
@@ -166,30 +166,32 @@ export default function McpPage() {
                 return (
                   <div
                     key={serverName}
-                    className="grid grid-cols-[60px_1fr_100px_100px] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--bg-secondary)] transition-colors"
+                    className="flex flex-col gap-2 sm:grid sm:grid-cols-[60px_1fr_100px_100px] sm:gap-3 sm:items-center px-4 py-3 border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--bg-secondary)] transition-colors"
                   >
-                    <span className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--text-tertiary)]">{code}</span>
-                    <div className="min-w-0">
-                      <h3 className="text-[13px] font-medium text-[var(--text-primary)] truncate">{serverName}</h3>
-                      <p className="text-[11px] font-mono text-[var(--text-tertiary)] truncate mt-0.5">{snippet || "—"}</p>
+                    <div className="flex items-center justify-between sm:contents">
+                      <span className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--text-tertiary)] sm:block">{code}</span>
+                      <div className="min-w-0 flex-1 sm:mx-0 mx-3">
+                        <h3 className="text-[13px] font-medium text-[var(--text-primary)] truncate">{serverName}</h3>
+                        <p className="text-[11px] font-mono text-[var(--text-tertiary)] truncate mt-0.5">{snippet || "—"}</p>
+                      </div>
+                      <div className="flex flex-col gap-0.5 items-end sm:items-start">
+                        <span className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase text-[var(--text-secondary)]">{transport}</span>
+                        {authed && <span className="font-mono text-[9px] tracking-[0.15em] uppercase text-[var(--text-tertiary)]">● Auth</span>}
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase text-[var(--text-secondary)]">{transport}</span>
-                      {authed && <span className="font-mono text-[9px] tracking-[0.15em] uppercase text-[var(--text-tertiary)]">● Auth</span>}
-                    </div>
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-3 sm:gap-2 pt-1 sm:pt-0 border-t sm:border-t-0 border-[var(--border)]">
                       {canOAuth && (
                         <button
                           onClick={() => handleOAuthConnect(serverName, config.url!)}
                           disabled={connecting === serverName}
-                          className="font-mono text-[9px] font-semibold tracking-[0.15em] uppercase text-[var(--text-primary)] hover:underline disabled:opacity-50"
+                          className="font-mono text-[10px] sm:text-[9px] font-semibold tracking-[0.15em] uppercase text-[var(--text-primary)] hover:underline disabled:opacity-50 py-1"
                         >
                           {connecting === serverName ? "…" : "Connect"}
                         </button>
                       )}
                       <button
                         onClick={() => handleDelete(serverName)}
-                        className="font-mono text-[9px] font-semibold tracking-[0.15em] uppercase text-[var(--text-tertiary)] hover:text-red-500"
+                        className="font-mono text-[10px] sm:text-[9px] font-semibold tracking-[0.15em] uppercase text-[var(--text-tertiary)] hover:text-red-500 py-1"
                       >
                         ✕ Del
                       </button>
@@ -213,7 +215,7 @@ export default function McpPage() {
                 </div>
                 <div>
                   <label className={labelCls}>Transport</label>
-                  <div className="flex -ml-px">
+                  <div className="flex flex-wrap -ml-px">
                     {(["stdio", "sse", "streamableHttp"] as const).map((t) => (
                       <button key={t} type="button" onClick={() => setType(t)}
                         className={`px-3.5 py-2 font-mono text-[10px] font-semibold tracking-[0.15em] uppercase border -ml-px transition-colors ${type === t ? "bg-[var(--accent)] text-[var(--bg-primary)] border-[var(--accent)] relative z-10" : "bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-primary)]"}`}>
@@ -271,11 +273,11 @@ export default function McpPage() {
                               ))}
                             </div>
                           )}
-                          <div className="flex gap-0 -ml-px">
-                            <input type="text" value={headerKey} onChange={(e) => setHeaderKey(e.target.value)} placeholder="Authorization" className={`${inputCls} font-mono -ml-px`} />
-                            <input type="text" value={headerVal} onChange={(e) => setHeaderVal(e.target.value)} placeholder="Bearer sk-…" className={`${inputCls} font-mono -ml-px`} />
+                          <div className="flex flex-col sm:flex-row sm:gap-0 gap-2 sm:-ml-px">
+                            <input type="text" value={headerKey} onChange={(e) => setHeaderKey(e.target.value)} placeholder="Authorization" className={`${inputCls} font-mono sm:-ml-px`} />
+                            <input type="text" value={headerVal} onChange={(e) => setHeaderVal(e.target.value)} placeholder="Bearer sk-…" className={`${inputCls} font-mono sm:-ml-px`} />
                             <button type="button" onClick={() => { if (headerKey.trim()) { setHeaders({ ...headers, [headerKey.trim()]: headerVal }); setHeaderKey(""); setHeaderVal(""); } }}
-                              disabled={!headerKey.trim()} className={`${btnGhost} -ml-px whitespace-nowrap`}>+ Add</button>
+                              disabled={!headerKey.trim()} className={`${btnGhost} sm:-ml-px whitespace-nowrap`}>+ Add</button>
                           </div>
                         </>
                       )}

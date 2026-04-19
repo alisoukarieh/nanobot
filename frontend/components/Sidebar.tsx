@@ -66,7 +66,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         href={item.href}
         onClick={onClose}
         className={`
-          group flex items-center gap-3 px-3 py-2.5 text-[12px] transition-colors border-l-2
+          group flex items-center gap-3 px-3 py-3 md:py-2.5 text-[12px] transition-colors border-l-2
           ${
             isActive
               ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text-primary)]"
@@ -93,13 +93,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <aside
         className={`
           fixed md:static inset-y-0 left-0 z-50
-          w-[240px] md:w-[220px] h-screen flex flex-col
+          w-[260px] md:w-[220px] h-dvh flex flex-col
           border-r border-[var(--border)] bg-[var(--sidebar-bg)]
           transition-transform duration-200
+          pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
           ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
-        <div className="px-4 h-14 flex items-center justify-between border-b border-[var(--border)]">
+        <div className="px-4 h-14 flex items-center justify-between border-b border-[var(--border)] flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-6 h-6 border border-[var(--text-primary)] flex items-center justify-center">
               <span className="text-[var(--text-primary)] text-[9px] font-bold tracking-tight font-mono">NB</span>
@@ -108,8 +109,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               Nanobot
             </span>
           </div>
-          <button onClick={onClose} className="md:hidden w-7 h-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <button onClick={onClose} aria-label="Close menu" className="md:hidden w-11 h-11 -mr-2 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
               <path d="M11 3L3 11M3 3l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </button>
@@ -133,11 +134,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
 
         <div className="border-t border-[var(--border)]">
-          <button onClick={nextTheme} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors border-b border-[var(--border)]">
+          <button onClick={nextTheme} className="w-full flex items-center gap-2.5 px-3 py-3 md:py-2.5 text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors border-b border-[var(--border)]">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none">{themeIcon}</svg>
             {theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light"}
           </button>
-          <button onClick={logout} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors">
+          <button onClick={logout} className="w-full flex items-center gap-2.5 px-3 py-3 md:py-2.5 text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
               <path d="M5.5 12.5H3a1 1 0 01-1-1v-9a1 1 0 011-1h2.5M9.5 10l3-3-3-3M12.5 7H5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>

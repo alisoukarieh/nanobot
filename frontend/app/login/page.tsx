@@ -23,7 +23,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-[var(--bg-primary)] px-4">
+    <div className="h-dvh flex items-center justify-center bg-[var(--bg-primary)] px-4 py-[max(1rem,env(safe-area-inset-top))]">
       <div className="w-full max-w-[400px] animate-in">
         <div className="border border-[var(--border)]">
           <div className="border-b border-[var(--border)] px-5 py-3 flex items-center justify-between">

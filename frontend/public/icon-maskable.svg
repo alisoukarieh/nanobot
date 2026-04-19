@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0a0a0a"/>
+  <text x="256" y="256" fill="#f5f5f5" font-family="ui-monospace, 'JetBrains Mono', monospace" font-weight="700" font-size="130" text-anchor="middle" dominant-baseline="central" letter-spacing="-3">NB</text>
+</svg>

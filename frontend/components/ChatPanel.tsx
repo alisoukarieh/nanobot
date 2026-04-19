@@ -212,8 +212,8 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
         </div>
       </div>
 
-      <div className="border-t border-[var(--border)] bg-[var(--bg-primary)]">
-        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 py-2">
+      <div className="border-t border-[var(--border)] bg-[var(--bg-primary)] pb-[env(safe-area-inset-bottom)]">
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-5 py-3 sm:py-2">
           <form onSubmit={handleSubmit} className="relative flex">
             <input
               type="text"
@@ -221,8 +221,11 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
               onChange={(e) => setInput(e.target.value)}
               placeholder={mic === "recording" ? "Recording…" : mic === "transcribing" ? "Transcribing…" : "Message nanobot..."}
               disabled={sending || mic !== "idle"}
+              enterKeyHint="send"
+              autoComplete="off"
+              autoCorrect="off"
               className="
-                flex-1 min-w-0 px-3.5 py-3 text-[13px]
+                flex-1 min-w-0 px-3.5 py-3 text-[16px] sm:text-[13px]
                 bg-[var(--input-bg)] border border-[var(--border)] border-r-0
                 text-[var(--text-primary)]
                 placeholder:text-[var(--text-tertiary)]
