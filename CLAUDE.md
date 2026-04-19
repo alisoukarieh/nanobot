@@ -89,7 +89,7 @@ If you bump only `dashboard` but not `nanobot`, dashboard runs its `cp -r /repo/
 
 ### Restart just the agent (config change, skill change, etc.)
 
-- `POST http://nanobot-api-173-212-239-198.traefik.me/restart` with `Authorization: Bearer <NANOBOT_API_KEY>` — only restarts nanobot-api. Use this when you've changed a skill or the agent config and don't want to bump CACHE_BUST.
+- `POST https://nanobot-api.almotawasetta.com/restart` with `Authorization: Bearer <NANOBOT_API_KEY>` — only restarts nanobot-api. Use this when you've changed a skill or the agent config and don't want to bump CACHE_BUST.
 
 ---
 
@@ -97,11 +97,11 @@ If you bump only `dashboard` but not `nanobot`, dashboard runs its `cp -r /repo/
 
 | What | Value |
 |---|---|
-| Dashboard | http://nanobot-173-212-239-198.traefik.me/ |
+| Dashboard | https://nanobot.almotawasetta.com/ |
 | Dashboard login | `admin@nanobot.local` / `Nanobot2026Admin` |
-| PocketBase admin UI | http://nanobot-pb-173-212-239-198.traefik.me/_/ |
+| PocketBase admin UI | https://nanobot-pb.almotawasetta.com/_/ |
 | PocketBase admin | `admin@nanobot.local` / `Nanobot2026Admin` |
-| nanobot-api | http://nanobot-api-173-212-239-198.traefik.me/ (Bearer `NANOBOT_API_KEY`) |
+| nanobot-api | https://nanobot-api.almotawasetta.com/ (Bearer `NANOBOT_API_KEY`) |
 | `NANOBOT_API_KEY` | `e1fff3f463732981834c92d4b218e60589644815a1b37485335b9218ca6cf2eb` |
 | OpenRouter key | in compose env (shown in `compose.one` → `env`) |
 | GitHub Copilot token | `/data/.nanobot/auth/github-copilot.json` in the nanobot-data volume (persisted; `OAUTH_CLI_KIT_TOKEN_PATH` env points to it) |
