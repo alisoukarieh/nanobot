@@ -15,7 +15,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (isBare) return <>{children}</>;
 
   return (
-    <div className="flex h-dvh">
+    <div className="flex h-app">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar onMenuClick={() => setSidebarOpen(true)} />
