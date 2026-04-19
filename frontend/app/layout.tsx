@@ -4,7 +4,6 @@ import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
-import { ViewportHeight } from "@/components/ViewportHeight";
 
 export const metadata: Metadata = {
   title: "nanobot",
@@ -43,8 +42,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="h-app overflow-hidden">
-        <ViewportHeight />
+      <body className="h-dvh overflow-hidden">
         <ThemeProvider>
           <AuthProvider>
             <AppShell>{children}</AppShell>

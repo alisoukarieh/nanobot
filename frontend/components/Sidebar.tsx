@@ -93,7 +93,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <aside
         className={`
           fixed md:static inset-y-0 left-0 z-50
-          w-[260px] md:w-[220px] h-app flex flex-col
+          w-[260px] md:w-[220px] h-dvh flex flex-col
           border-r border-[var(--border)] bg-[var(--sidebar-bg)]
           transition-transform duration-200
           pt-safe pb-safe
