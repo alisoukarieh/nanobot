@@ -42,19 +42,17 @@ export async function GET(request: NextRequest) {
     }
     const sessionId = sessions[0].id;
 
-    // PB relation filters are unreliable without auth, so we pull all
-    // messages and filter in JS. Workable while messages stay under a
-    // few hundred per session.
-    const allMsgs = await fetch(`${PB_URL}/api/collections/messages/records?perPage=500`).then((r) => r.json());
-    const items: PbMessage[] = allMsgs.items || [];
+    const filterParts = [`session.id = '${sessionId}'`];
+    if (before) filterParts.push(`timestamp < '${before}'`);
+    const filter = filterParts.join(" && ");
 
-    const sessionMessages = items
-      .filter((m) => m.session === sessionId)
-      .sort((a, b) => (msgTime(a) < msgTime(b) ? 1 : -1)); // newest first
+    // Fetch limit+1 server-side, newest first, to detect hasMore in one call.
+    const msgsUrl = `${PB_URL}/api/collections/messages/records?filter=${encodeURIComponent(filter)}&sort=-timestamp&perPage=${limit + 1}`;
+    const msgsData = await fetch(msgsUrl).then((r) => r.json());
+    const items: PbMessage[] = msgsData.items || [];
 
-    const filtered = before ? sessionMessages.filter((m) => msgTime(m) < before) : sessionMessages;
-    const page = filtered.slice(0, limit);
-    const hasMore = filtered.length > page.length;
+    const hasMore = items.length > limit;
+    const page = items.slice(0, limit);
 
     const messages = page
       .reverse()
