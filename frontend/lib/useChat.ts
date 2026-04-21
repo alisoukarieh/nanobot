@@ -66,33 +66,128 @@ export function useChat({ sessionKey, pageSize = 50 }: UseChatOptions) {
     async (text: string, model?: string) => {
       if (sending) return;
 
+      const assistantId = uid();
       setMessages((msgs) => [
         ...msgs,
         { id: uid(), session: "", role: "user", content: text, created: new Date().toISOString() },
       ]);
       setSending(true);
 
+      const appendAssistant = (content: string) => {
+        setMessages((msgs) => [
+          ...msgs,
+          { id: assistantId, session: "", role: "assistant", content, created: new Date().toISOString() },
+        ]);
+      };
+      const updateAssistant = (updater: (prev: string) => string) => {
+        setMessages((msgs) => {
+          const idx = msgs.findIndex((m) => m.id === assistantId);
+          if (idx < 0) {
+            return [
+              ...msgs,
+              {
+                id: assistantId,
+                session: "",
+                role: "assistant",
+                content: updater(""),
+                created: new Date().toISOString(),
+              },
+            ];
+          }
+          const next = msgs.slice();
+          next[idx] = { ...next[idx], content: updater(next[idx].content) };
+          return next;
+        });
+      };
+
       try {
-        const body: Record<string, unknown> = { messages: [{ role: "user", content: text }] };
+        const body: Record<string, unknown> = {
+          messages: [{ role: "user", content: text }],
+          stream: true,
+        };
         if (model && model.trim()) body.model = model.trim();
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const data = await res.json();
-        const content =
-          data.choices?.[0]?.message?.content || data.error?.message || "No response";
 
-        setMessages((msgs) => [
-          ...msgs,
-          { id: uid(), session: "", role: "assistant", content, created: new Date().toISOString() },
-        ]);
+        const contentType = res.headers.get("content-type") || "";
+        if (!res.ok || !contentType.includes("text/event-stream") || !res.body) {
+          // Fallback: non-streaming JSON response (error or older server)
+          const data = await res.json().catch(() => ({}));
+          const content =
+            data.choices?.[0]?.message?.content || data.error?.message || "No response";
+          appendAssistant(content);
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let firstDelta = true;
+        let errorMessage = "";
+        let doneSignal = false;
+
+        while (!doneSignal) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let idx;
+          while ((idx = buffer.indexOf("\n\n")) !== -1) {
+            const rawEvent = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 2);
+
+            // An SSE event may carry multiple data: lines — concat them.
+            const dataLines = rawEvent
+              .split("\n")
+              .filter((l) => l.startsWith("data:"))
+              .map((l) => l.slice(5).replace(/^ /, ""));
+            if (dataLines.length === 0) continue;
+            const payload = dataLines.join("\n");
+            if (payload === "[DONE]") {
+              doneSignal = true;
+              break;
+            }
+
+            let event: any;
+            try {
+              event = JSON.parse(payload);
+            } catch {
+              continue;
+            }
+
+            if (event?.error?.message) {
+              errorMessage = event.error.message;
+              continue;
+            }
+
+            const delta = event?.choices?.[0]?.delta;
+            if (!delta) continue;
+
+            // A role marker signals a fresh assistant turn (or a tool-call
+            // round boundary); reset any buffered pre-tool content.
+            if (typeof delta.role === "string") {
+              updateAssistant(() => "");
+              continue;
+            }
+
+            if (typeof delta.content === "string" && delta.content.length > 0) {
+              if (firstDelta) {
+                firstDelta = false;
+                setSending(false);
+              }
+              updateAssistant((prev) => prev + delta.content);
+            }
+          }
+        }
+
+        if (errorMessage) {
+          updateAssistant(() => errorMessage);
+        }
       } catch {
-        setMessages((msgs) => [
-          ...msgs,
-          { id: uid(), session: "", role: "assistant", content: "Failed to connect.", created: new Date().toISOString() },
-        ]);
+        updateAssistant(() => "Failed to connect.");
       } finally {
         setSending(false);
       }
