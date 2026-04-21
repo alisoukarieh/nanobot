@@ -4,12 +4,13 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
-import { WhatsAppClient, InboundMessage } from './whatsapp.js';
+import { WhatsAppClient, InboundMessage, MessageKey } from './whatsapp.js';
 
 interface SendCommand {
   type: 'send';
   to: string;
   text: string;
+  reqId?: string;
 }
 
 interface SendMediaCommand {
@@ -19,9 +20,18 @@ interface SendMediaCommand {
   mimetype: string;
   caption?: string;
   fileName?: string;
+  reqId?: string;
 }
 
-type BridgeCommand = SendCommand | SendMediaCommand;
+interface EditCommand {
+  type: 'edit';
+  to: string;
+  key: MessageKey;
+  text: string;
+  reqId?: string;
+}
+
+type BridgeCommand = SendCommand | SendMediaCommand | EditCommand;
 
 interface BridgeMessage {
   type: 'message' | 'status' | 'qr' | 'error';
@@ -93,13 +103,19 @@ export class BridgeServer {
     this.clients.add(ws);
 
     ws.on('message', async (data) => {
+      let cmd: BridgeCommand | undefined;
       try {
-        const cmd = JSON.parse(data.toString()) as BridgeCommand;
-        await this.handleCommand(cmd);
-        ws.send(JSON.stringify({ type: 'sent', to: cmd.to }));
+        cmd = JSON.parse(data.toString()) as BridgeCommand;
+        const key = await this.handleCommand(cmd);
+        const ack: Record<string, unknown> = { type: 'sent', to: cmd.to };
+        if (cmd.reqId) ack.reqId = cmd.reqId;
+        if (key) ack.key = key;
+        ws.send(JSON.stringify(ack));
       } catch (error) {
         console.error('Error handling command:', error);
-        ws.send(JSON.stringify({ type: 'error', error: String(error) }));
+        const err: Record<string, unknown> = { type: 'error', error: String(error) };
+        if (cmd?.reqId) err.reqId = cmd.reqId;
+        ws.send(JSON.stringify(err));
       }
     });
 
@@ -114,14 +130,19 @@ export class BridgeServer {
     });
   }
 
-  private async handleCommand(cmd: BridgeCommand): Promise<void> {
-    if (!this.wa) return;
+  private async handleCommand(cmd: BridgeCommand): Promise<MessageKey | null> {
+    if (!this.wa) return null;
 
     if (cmd.type === 'send') {
-      await this.wa.sendMessage(cmd.to, cmd.text);
+      return await this.wa.sendMessage(cmd.to, cmd.text);
     } else if (cmd.type === 'send_media') {
       await this.wa.sendMedia(cmd.to, cmd.filePath, cmd.mimetype, cmd.caption, cmd.fileName);
+      return null;
+    } else if (cmd.type === 'edit') {
+      await this.wa.editMessage(cmd.to, cmd.key, cmd.text);
+      return null;
     }
+    return null;
   }
 
   private broadcast(msg: BridgeMessage): void {

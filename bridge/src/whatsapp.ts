@@ -33,6 +33,12 @@ export interface InboundMessage {
   media?: string[];
 }
 
+export interface MessageKey {
+  id: string;
+  remoteJid: string;
+  fromMe?: boolean;
+}
+
 export interface WhatsAppClientOptions {
   authDir: string;
   onMessage: (msg: InboundMessage) => void;
@@ -256,12 +262,29 @@ export class WhatsAppClient {
     return null;
   }
 
-  async sendMessage(to: string, text: string): Promise<void> {
+  async sendMessage(to: string, text: string): Promise<MessageKey | null> {
     if (!this.sock) {
       throw new Error('Not connected');
     }
 
-    await this.sock.sendMessage(to, { text });
+    const sent = await this.sock.sendMessage(to, { text });
+    if (sent?.key?.id && sent?.key?.remoteJid) {
+      return {
+        id: String(sent.key.id),
+        remoteJid: String(sent.key.remoteJid),
+        fromMe: Boolean(sent.key.fromMe),
+      };
+    }
+    return null;
+  }
+
+  async editMessage(to: string, key: MessageKey, text: string): Promise<void> {
+    if (!this.sock) {
+      throw new Error('Not connected');
+    }
+    // Baileys edit: pass a message key under `edit` alongside the new text.
+    // The key's remoteJid and id identify the original message; `to` is the envelope target.
+    await this.sock.sendMessage(to, { text, edit: key });
   }
 
   async sendMedia(

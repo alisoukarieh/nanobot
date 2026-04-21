@@ -7,7 +7,9 @@ import os
 import secrets
 import shutil
 import subprocess
+import time
 from collections import OrderedDict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -20,6 +22,22 @@ from nanobot.channels.base import BaseChannel
 from nanobot.config.schema import Base
 
 
+_STREAM_EDIT_INTERVAL_DEFAULT = 1.5  # min seconds between edits; WA rate-limits frequent edits
+_ACK_TIMEOUT = 15.0
+
+
+@dataclass
+class _WaStreamBuf:
+    """Per-chat streaming accumulator for WhatsApp progressive edits."""
+
+    text: str = ""
+    message_key: dict[str, Any] | None = None
+    last_edit: float = 0.0
+    stream_id: str | None = None
+    envelope_jid: str | None = None  # the `to` field used on send; needed for edits
+    broken: bool = False  # bridge refused to return a key — stop trying to stream
+
+
 class WhatsAppConfig(Base):
     """WhatsApp channel configuration."""
 
@@ -28,6 +46,8 @@ class WhatsAppConfig(Base):
     bridge_token: str = ""
     allow_from: list[str] = Field(default_factory=list)
     group_policy: Literal["open", "mention"] = "open"  # "open" responds to all, "mention" only when @mentioned
+    streaming: bool = True
+    stream_edit_interval: float = Field(default=_STREAM_EDIT_INTERVAL_DEFAULT, ge=0.1)
 
 
 def _bridge_token_path() -> Path:
@@ -72,11 +92,19 @@ class WhatsAppChannel(BaseChannel):
         if isinstance(config, dict):
             config = WhatsAppConfig.model_validate(config)
         super().__init__(config, bus)
+        self.config: WhatsAppConfig = config
         self._ws = None
         self._connected = False
         self._processed_message_ids: OrderedDict[str, None] = OrderedDict()
         self._lid_to_phone: dict[str, str] = {}
         self._bridge_token: str | None = None
+        self._stream_bufs: dict[str, _WaStreamBuf] = {}
+        self._pending_acks: dict[str, asyncio.Future] = {}
+        self._req_seq = 0
+
+    def _next_req_id(self) -> str:
+        self._req_seq += 1
+        return f"r{self._req_seq}"
 
     def _effective_bridge_token(self) -> str:
         """Resolve the bridge token, generating a local secret when needed."""
@@ -315,8 +343,109 @@ class WhatsAppChannel(BaseChannel):
             # QR code for authentication
             logger.info("Scan QR code in the bridge terminal to connect WhatsApp")
 
+        elif msg_type == "sent":
+            req_id = data.get("reqId")
+            if req_id:
+                fut = self._pending_acks.pop(req_id, None)
+                if fut is not None and not fut.done():
+                    fut.set_result(data.get("key"))
+
         elif msg_type == "error":
-            logger.error("WhatsApp bridge error: {}", data.get("error"))
+            req_id = data.get("reqId")
+            if req_id:
+                fut = self._pending_acks.pop(req_id, None)
+                if fut is not None and not fut.done():
+                    fut.set_exception(RuntimeError(str(data.get("error"))))
+            else:
+                logger.error("WhatsApp bridge error: {}", data.get("error"))
+
+    async def _send_with_ack(self, payload: dict[str, Any]) -> dict[str, Any] | None:
+        """Send a bridge command and await the ack; return the bridge-supplied message key (or None)."""
+        if not self._ws or not self._connected:
+            raise RuntimeError("WhatsApp bridge not connected")
+        req_id = self._next_req_id()
+        payload = {**payload, "reqId": req_id}
+        fut: asyncio.Future = asyncio.get_running_loop().create_future()
+        self._pending_acks[req_id] = fut
+        try:
+            await self._ws.send(json.dumps(payload, ensure_ascii=False))
+            return await asyncio.wait_for(fut, timeout=_ACK_TIMEOUT)
+        finally:
+            self._pending_acks.pop(req_id, None)
+
+    async def send_delta(self, chat_id: str, delta: str, metadata: dict[str, Any] | None = None) -> None:
+        """Progressive WhatsApp message editing: first delta sends, subsequent ones edit."""
+        if not self._ws or not self._connected:
+            return
+        meta = metadata or {}
+        stream_id = meta.get("_stream_id")
+        is_end = bool(meta.get("_stream_end"))
+
+        buf = self._stream_bufs.get(chat_id)
+        if buf is None or (stream_id is not None and buf.stream_id is not None and buf.stream_id != stream_id):
+            if is_end:
+                return  # nothing to finalize
+            buf = _WaStreamBuf(stream_id=stream_id, envelope_jid=chat_id)
+            self._stream_bufs[chat_id] = buf
+        elif buf.stream_id is None:
+            buf.stream_id = stream_id
+
+        if delta:
+            buf.text += delta
+
+        if buf.broken:
+            # Initial send went out but the bridge couldn't return a key, so we can't edit.
+            # Keep accumulating text silently; drop on stream_end.
+            if is_end:
+                self._stream_bufs.pop(chat_id, None)
+            return
+
+        if not buf.text.strip():
+            if is_end:
+                self._stream_bufs.pop(chat_id, None)
+            return
+
+        now = time.monotonic()
+
+        if buf.message_key is None:
+            # First emission for this stream — send the initial message and capture its key.
+            try:
+                key = await self._send_with_ack({"type": "send", "to": buf.envelope_jid, "text": buf.text})
+            except Exception as e:
+                logger.warning("WhatsApp stream initial send failed: {}", e)
+                raise
+            if not key:
+                logger.warning("WhatsApp bridge returned no message key; cannot stream-edit")
+                buf.broken = True
+                if is_end:
+                    self._stream_bufs.pop(chat_id, None)
+                return
+            buf.message_key = key
+            buf.last_edit = now
+            if is_end:
+                self._stream_bufs.pop(chat_id, None)
+            return
+
+        should_edit = is_end or (now - buf.last_edit) >= self.config.stream_edit_interval
+        if not should_edit:
+            return
+
+        try:
+            await self._send_with_ack({
+                "type": "edit",
+                "to": buf.envelope_jid,
+                "key": buf.message_key,
+                "text": buf.text,
+            })
+            buf.last_edit = now
+        except Exception as e:
+            logger.warning("WhatsApp stream edit failed: {}", e)
+            if is_end:
+                self._stream_bufs.pop(chat_id, None)
+            raise
+
+        if is_end:
+            self._stream_bufs.pop(chat_id, None)
 
 
 def _ensure_bridge_setup() -> Path:

@@ -264,6 +264,70 @@ async def test_voice_message_no_media_shows_not_available():
     assert kwargs["content"] == "[Voice Message: Audio not available]"
 
 
+@pytest.mark.asyncio
+async def test_stream_delta_sends_initial_then_edits_with_ack_correlation():
+    """First delta does a `send` and captures the key; subsequent deltas emit `edit`."""
+    ch = _make_channel()
+
+    captured_keys = [
+        {"id": "MSG1", "remoteJid": "123@s.whatsapp.net", "fromMe": True},
+    ]
+
+    async def fake_send(raw: str) -> None:
+        payload = json.loads(raw)
+        req_id = payload.get("reqId")
+        if not req_id:
+            return
+        # Simulate the bridge's ack loop: deliver a `sent` with the key for `send` commands,
+        # and a bare `sent` ack for `edit` commands.
+        ack: dict = {"type": "sent", "to": payload["to"], "reqId": req_id}
+        if payload["type"] == "send":
+            ack["key"] = captured_keys[0]
+        await ch._handle_bridge_message(json.dumps(ack))
+
+    ch._ws.send.side_effect = fake_send
+
+    # Force immediate edits (no throttle) so the test doesn't need to sleep.
+    ch.config.stream_edit_interval = 0.0
+
+    chat = "123@s.whatsapp.net"
+    stream_meta = {"_stream_id": "s1", "_stream_delta": True}
+
+    await ch.send_delta(chat, "Hello", stream_meta)
+    await ch.send_delta(chat, ", world", stream_meta)
+    await ch.send_delta(chat, "!", {"_stream_id": "s1", "_stream_end": True})
+
+    sent_payloads = [json.loads(c[0][0]) for c in ch._ws.send.call_args_list]
+    op_types = [p["type"] for p in sent_payloads]
+    assert op_types == ["send", "edit", "edit"]
+    assert sent_payloads[0]["text"] == "Hello"
+    assert sent_payloads[1]["text"] == "Hello, world"
+    assert sent_payloads[1]["key"]["id"] == "MSG1"
+    assert sent_payloads[2]["text"] == "Hello, world!"
+    # Buffer should be cleaned up after stream_end
+    assert chat not in ch._stream_bufs
+
+
+@pytest.mark.asyncio
+async def test_stream_delta_without_bridge_key_abandons_streaming():
+    """If the bridge replies without a message key, the channel gives up cleanly."""
+    ch = _make_channel()
+
+    async def fake_send(raw: str) -> None:
+        payload = json.loads(raw)
+        ack = {"type": "sent", "to": payload["to"], "reqId": payload.get("reqId")}
+        await ch._handle_bridge_message(json.dumps(ack))
+
+    ch._ws.send.side_effect = fake_send
+    ch.config.stream_edit_interval = 0.0
+
+    chat = "123@s.whatsapp.net"
+    await ch.send_delta(chat, "Hello", {"_stream_id": "s1"})
+    # Second call should short-circuit (no key was captured), so still only 1 ws.send.
+    await ch.send_delta(chat, " world", {"_stream_id": "s1"})
+    assert ch._ws.send.call_count == 1
+
+
 def test_load_or_create_bridge_token_persists_generated_secret(tmp_path):
     token_path = tmp_path / "whatsapp-auth" / "bridge-token"
 
