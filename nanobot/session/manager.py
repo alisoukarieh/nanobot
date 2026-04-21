@@ -253,8 +253,16 @@ class SessionManager:
                 })
                 session._pb_session_id = created["id"]
 
+        # Position must be monotonic across the whole PB session history,
+        # not just the in-memory list. Auto-compact can shrink
+        # session.messages while older rows stay in PB; using the list
+        # index would restart positions low and collide with the archived
+        # rows, which interleaves messages on load and breaks tool-call
+        # pairing for the provider. Compute from PB's current max.
+        next_position = await self._pb_next_position(session._pb_session_id)
+
         # Insert any new messages
-        for i, msg in enumerate(session.messages):
+        for msg in session.messages:
             if msg.get("_pb_id"):
                 continue
             extras = {k: msg[k] for k in _EXTRA_FIELDS if k in msg}
@@ -264,14 +272,15 @@ class SessionManager:
                     "role": msg.get("role", ""),
                     "content": msg.get("content", ""),
                     "timestamp": msg.get("timestamp", ""),
-                    "position": i,
+                    "position": next_position,
                     "extra": json.dumps(extras) if extras else "",
                 })
                 msg["_pb_id"] = result.get("id")
+                next_position += 1
             except Exception:
                 logger.exception(
-                    "PB: insert message {} (role={}) failed for session {}",
-                    i, msg.get("role"), session._pb_session_id,
+                    "PB: insert message (role={}, position={}) failed for session {}",
+                    msg.get("role"), next_position, session._pb_session_id,
                 )
 
         # Update session metadata
@@ -283,6 +292,21 @@ class SessionManager:
             })
         except Exception:
             logger.exception("PB: update session row {} failed", session._pb_session_id)
+
+    async def _pb_next_position(self, pb_session_id: str) -> int:
+        result = await self._pb.query_records(
+            "messages",
+            filter_expr=f"session.id = '{pb_session_id}'",
+            sort="-position",
+            per_page=1,
+        )
+        items = result.get("items", [])
+        if not items:
+            return 0
+        try:
+            return int(items[0].get("position") or 0) + 1
+        except (TypeError, ValueError):
+            return 0
 
     async def _pb_list_sessions(self) -> list[dict[str, Any]]:
         result = await self._pb.query_records("sessions", per_page=100)
