@@ -73,29 +73,26 @@ export function useChat({ sessionKey, pageSize = 50 }: UseChatOptions) {
       ]);
       setSending(true);
 
-      const appendAssistant = (content: string) => {
-        setMessages((msgs) => [
-          ...msgs,
-          { id: assistantId, session: "", role: "assistant", content, created: new Date().toISOString() },
-        ]);
-      };
-      const updateAssistant = (updater: (prev: string) => string) => {
+      // Local stream state — kept outside React so we can update synchronously
+      // between SSE events without waiting for state to flush.
+      let hasBubble = false;
+      let currentText = "";
+
+      const writeBubble = (content: string) => {
+        currentText = content;
+        if (!hasBubble) {
+          hasBubble = true;
+          setMessages((msgs) => [
+            ...msgs,
+            { id: assistantId, session: "", role: "assistant", content, created: new Date().toISOString() },
+          ]);
+          return;
+        }
         setMessages((msgs) => {
           const idx = msgs.findIndex((m) => m.id === assistantId);
-          if (idx < 0) {
-            return [
-              ...msgs,
-              {
-                id: assistantId,
-                session: "",
-                role: "assistant",
-                content: updater(""),
-                created: new Date().toISOString(),
-              },
-            ];
-          }
+          if (idx < 0) return msgs;
           const next = msgs.slice();
-          next[idx] = { ...next[idx], content: updater(next[idx].content) };
+          next[idx] = { ...next[idx], content };
           return next;
         });
       };
@@ -118,14 +115,14 @@ export function useChat({ sessionKey, pageSize = 50 }: UseChatOptions) {
           const data = await res.json().catch(() => ({}));
           const content =
             data.choices?.[0]?.message?.content || data.error?.message || "No response";
-          appendAssistant(content);
+          writeBubble(content);
           return;
         }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
-        let firstDelta = true;
+        let awaitingFirstContent = true;
         let errorMessage = "";
         let doneSignal = false;
 
@@ -166,28 +163,36 @@ export function useChat({ sessionKey, pageSize = 50 }: UseChatOptions) {
             const delta = event?.choices?.[0]?.delta;
             if (!delta) continue;
 
-            // A role marker signals a fresh assistant turn (or a tool-call
-            // round boundary); reset any buffered pre-tool content.
+            // A role marker signals a fresh assistant turn (opener) or a
+            // tool-call round boundary. Drop any pre-tool content entirely
+            // (remove the bubble) and bring back the typing dots until
+            // tokens start flowing again.
             if (typeof delta.role === "string") {
-              updateAssistant(() => "");
+              awaitingFirstContent = true;
+              setSending(true);
+              currentText = "";
+              if (hasBubble) {
+                hasBubble = false;
+                setMessages((msgs) => msgs.filter((m) => m.id !== assistantId));
+              }
               continue;
             }
 
             if (typeof delta.content === "string" && delta.content.length > 0) {
-              if (firstDelta) {
-                firstDelta = false;
+              if (awaitingFirstContent) {
+                awaitingFirstContent = false;
                 setSending(false);
               }
-              updateAssistant((prev) => prev + delta.content);
+              writeBubble(currentText + delta.content);
             }
           }
         }
 
         if (errorMessage) {
-          updateAssistant(() => errorMessage);
+          writeBubble(errorMessage);
         }
       } catch {
-        updateAssistant(() => "Failed to connect.");
+        writeBubble("Failed to connect.");
       } finally {
         setSending(false);
       }
