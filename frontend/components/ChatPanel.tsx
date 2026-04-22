@@ -20,6 +20,7 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -79,6 +80,22 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
     send(text);
     setInput("");
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter sends; Shift+Enter inserts a newline. Ignore while IME composing.
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
+  };
+
+  // Auto-grow the textarea up to a max height; scroll internally beyond that.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [input]);
 
   const startRecording = async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -214,16 +231,18 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
 
       <div className="border-t border-[var(--border)] bg-[var(--bg-primary)] py-2">
         <div className="max-w-4xl mx-auto w-full px-3 sm:px-5">
-          <form onSubmit={handleSubmit} className="relative flex">
-            <input
-              type="text"
+          <form onSubmit={handleSubmit} className="relative flex items-stretch">
+            <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder={mic === "recording" ? "Recording…" : mic === "transcribing" ? "Transcribing…" : "Message nanobot..."}
               disabled={sending || mic !== "idle"}
               enterKeyHint="send"
               autoComplete="off"
               autoCorrect="off"
+              rows={1}
               className="
                 flex-1 min-w-0 px-3.5 py-3 text-[16px] sm:text-[13px]
                 bg-[var(--input-bg)] border border-[var(--border)] border-r-0
@@ -232,6 +251,8 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
                 focus:outline-none focus:border-[var(--accent)]
                 disabled:opacity-40
                 transition-colors
+                resize-none overflow-y-auto leading-[1.5]
+                whitespace-pre-wrap break-words
               "
             />
             <button
