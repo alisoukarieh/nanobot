@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
+import { ModelSelector } from "@/components/ModelSelector";
 
 interface CustomNavItem {
   label: string;
@@ -134,6 +135,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
 
         <div className="border-t border-[var(--border)]">
+          <ModelSelector onClose={onClose} />
           <button onClick={nextTheme} className="w-full flex items-center gap-2.5 px-3 py-3 md:py-2.5 text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors border-b border-[var(--border)]">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none">{themeIcon}</svg>
             {theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light"}

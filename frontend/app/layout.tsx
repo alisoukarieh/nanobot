@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
+import { ModelsProvider } from "@/lib/models";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
@@ -45,7 +46,9 @@ export default function RootLayout({
       <body className="h-dvh overflow-hidden">
         <ThemeProvider>
           <AuthProvider>
-            <AppShell>{children}</AppShell>
+            <ModelsProvider>
+              <AppShell>{children}</AppShell>
+            </ModelsProvider>
           </AuthProvider>
         </ThemeProvider>
         <ServiceWorkerRegister />

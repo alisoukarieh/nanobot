@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useChat } from "@/lib/useChat";
+import { useModels } from "@/lib/models";
 import { ChatMessage } from "./ChatMessage";
 
 interface ChatPanelProps {
@@ -15,6 +16,7 @@ type MicState = "idle" | "recording" | "transcribing";
 
 export function ChatPanel({ sessionKey }: ChatPanelProps) {
   const { messages, loading, loadingOlder, hasMore, sending, send, loadOlder } = useChat({ sessionKey });
+  const { selected: selectedModel } = useModels();
   const [input, setInput] = useState("");
   const [mic, setMic] = useState<MicState>("idle");
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -77,7 +79,7 @@ export function ChatPanel({ sessionKey }: ChatPanelProps) {
     const text = input.trim();
     if (!text) return;
     stickToBottomRef.current = true; // always pin to bottom when user sends
-    send(text);
+    send(text, selectedModel || undefined);
     setInput("");
   };
 

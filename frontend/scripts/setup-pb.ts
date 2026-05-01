@@ -116,6 +116,13 @@ const COLLECTIONS: CollectionDef[] = [
       { name: "extra", type: "text" },
     ],
   },
+  {
+    name: "models",
+    type: "base",
+    fields: [
+      { name: "name", type: "text", required: true },
+    ],
+  },
 ];
 
 // ── Main ────────────────────────────────────────────────────────────
