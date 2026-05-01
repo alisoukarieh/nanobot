@@ -71,6 +71,8 @@ interface FieldDef {
   required?: boolean;
   collectionId?: string;
   maxSelect?: number;
+  onCreate?: boolean;
+  onUpdate?: boolean;
 }
 
 interface CollectionDef {
@@ -121,6 +123,7 @@ const COLLECTIONS: CollectionDef[] = [
     type: "base",
     fields: [
       { name: "name", type: "text", required: true },
+      { name: "created", type: "autodate", onCreate: true, onUpdate: false },
     ],
   },
 ];
