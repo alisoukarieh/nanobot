@@ -27,12 +27,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       NANOBOT_API_KEY: ${NANOBOT_API_KEY:-}
       GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD:-}
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      mkdir -p /home/nanobot/.nanobot/logs
-      [ -x /home/nanobot/.nanobot/bin/gog ] && ln -sf /home/nanobot/.nanobot/bin/gog /usr/local/bin/gog || true
-      nohup nanobot channels login whatsapp > /home/nanobot/.nanobot/logs/whatsapp-bridge.log 2>&1 &
-      exec nanobot gateway
+    entrypoint: ["/usr/local/bin/gateway.sh"]
 
   nanobot-api:
     image: nanobot:latest
@@ -52,10 +47,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       NANOBOT_API_KEY: ${NANOBOT_API_KEY:-}
       GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD:-}
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      [ -x /home/nanobot/.nanobot/bin/gog ] && ln -sf /home/nanobot/.nanobot/bin/gog /usr/local/bin/gog || true
-      exec nanobot serve --host 0.0.0.0 --verbose
+    entrypoint: ["/usr/local/bin/api.sh"]
 
   dashboard:
     image: node:20-slim
@@ -75,21 +67,10 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       DASHBOARD_REPO_URL: ${DASHBOARD_REPO_URL:-https://github.com/alisoukarieh/nanobot.git}
       DASHBOARD_REPO_BRANCH: ${DASHBOARD_REPO_BRANCH:-main}
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      set -e
-      mkdir -p /app
-      apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1
-      rm -rf /tmp/repo
-      git clone --depth 1 --branch "$$DASHBOARD_REPO_BRANCH" "$$DASHBOARD_REPO_URL" /tmp/repo
-      # Additive sync: refresh core files, leave (custom)/ instance dirs untouched
-      cp -r /tmp/repo/frontend/. /app/ 2>/dev/null || cp -Rf /tmp/repo/frontend/. /app/
-      rm -rf /tmp/repo
-      cd /app
-      npm install --no-audit --no-fund
-      rm -rf .next
-      npm run build
-      exec npx next start
+      DASHBOARD_BOOTSTRAP_URL: ${DASHBOARD_BOOTSTRAP_URL:-https://raw.githubusercontent.com/alisoukarieh/nanobot/main/deploy/dashboard.sh}
+    entrypoint: ["sh", "-c"]
+    command:
+      - "apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1 && curl -fsSL \"$$DASHBOARD_BOOTSTRAP_URL\" | sh"
 
 volumes:
   pb-data:

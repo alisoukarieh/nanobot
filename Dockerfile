@@ -40,6 +40,13 @@ RUN useradd -m -u 1000 -s /bin/bash nanobot && \
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
+# Deploy-time entrypoints used by docker-compose.yml. Baked into the image
+# so the YAML can reference them by absolute path — avoids fragile inline
+# `command: |` block scalars in compose.
+COPY deploy/gateway.sh deploy/api.sh /usr/local/bin/
+RUN sed -i 's/\r$//' /usr/local/bin/gateway.sh /usr/local/bin/api.sh && \
+    chmod +x /usr/local/bin/gateway.sh /usr/local/bin/api.sh
+
 USER nanobot
 ENV HOME=/home/nanobot
 
