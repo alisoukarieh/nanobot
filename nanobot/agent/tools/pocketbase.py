@@ -156,11 +156,27 @@ class PocketBaseClient:
 
 
 def _extract_error(response: httpx.Response) -> str:
-    """Extract a human-readable error from a PocketBase response."""
+    """Extract a human-readable error from a PocketBase response.
+
+    PocketBase wraps per-field validation reasons under `data`, e.g.
+        {"message": "Failed to create record.", "data":
+            {"title": {"code": "validation_required", "message": "Cannot be blank."}}}
+    Returning only `message` strips the actionable detail and leaves the
+    caller (often an LLM) guessing why the request failed. Surface the
+    field-level reasons too so the caller can self-correct.
+    """
     try:
         body = response.json()
         if isinstance(body, dict):
-            return body.get("message", "") or str(body)
+            message = body.get("message", "") or ""
+            data = body.get("data")
+            if isinstance(data, dict) and data:
+                fields = ", ".join(
+                    f"{k}: {v.get('message', v) if isinstance(v, dict) else v}"
+                    for k, v in data.items()
+                )
+                return f"{message} — {fields}" if message else fields
+            return message or str(body)
     except Exception:
         pass
     return response.text[:200] if response.text else f"HTTP {response.status_code}"

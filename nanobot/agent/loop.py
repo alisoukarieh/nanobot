@@ -100,7 +100,9 @@ class _LoopHook(AgentHook):
             await self._on_progress(tool_hint, tool_hint=True)
         for tc in context.tool_calls:
             args_str = json.dumps(tc.arguments, ensure_ascii=False)
-            logger.info("Tool call: {}({})", tc.name, args_str[:200])
+            if len(args_str) > 2000:
+                args_str = args_str[:2000] + f"...<+{len(args_str) - 2000} chars>"
+            logger.info("Tool call: {}({})", tc.name, args_str)
         self._loop._set_tool_context(self._channel, self._chat_id, self._message_id)
 
     async def after_iteration(self, context: AgentHookContext) -> None:
