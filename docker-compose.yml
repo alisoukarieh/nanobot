@@ -1,102 +1,97 @@
-x-common-config: &common-config
-  build:
-    context: .
-    dockerfile: Dockerfile
-  volumes:
-    - ~/.nanobot:/home/nanobot/.nanobot
-  cap_drop:
-    - ALL
-  cap_add:
-    - SYS_ADMIN
-  security_opt:
-    - apparmor=unconfined
-    - seccomp=unconfined
+x-nanobot-build: &nanobot-build
+  context: .
+  dockerfile: Dockerfile
 
 services:
   pocketbase:
     image: ghcr.io/muchobien/pocketbase:latest
-    container_name: nanobot-pocketbase
     restart: unless-stopped
     volumes:
-      - ~/.nanobot/pocketbase:/pb_data
-    ports:
-      - 127.0.0.1:8090:8090
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          cpus: "0.1"
-          memory: 64M
+      - pb-data:/pb_data
 
-  nanobot-gateway:
-    container_name: nanobot-gateway
-    <<: *common-config
-    command: ["gateway"]
+  nanobot:
+    build: *nanobot-build
+    image: nanobot:latest
     restart: unless-stopped
+    user: "0:0"
+    working_dir: /app
     depends_on:
       - pocketbase
-    ports:
-      - 18790:18790
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 1G
-        reservations:
-          cpus: "0.25"
-          memory: 256M
+    volumes:
+      - nanobot-data:/home/nanobot/.nanobot
+    environment:
+      HOME: /home/nanobot
+      XDG_CONFIG_HOME: /home/nanobot/.nanobot/config
+      DASHBOARD_INTERNAL_URL: http://dashboard:3000
+      OAUTH_CLI_KIT_TOKEN_PATH: /home/nanobot/.nanobot/auth/github-copilot.json
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      NANOBOT_API_KEY: ${NANOBOT_API_KEY:-}
+      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD:-}
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      mkdir -p /home/nanobot/.nanobot/logs
+      [ -x /home/nanobot/.nanobot/bin/gog ] && ln -sf /home/nanobot/.nanobot/bin/gog /usr/local/bin/gog || true
+      nohup nanobot channels login whatsapp > /home/nanobot/.nanobot/logs/whatsapp-bridge.log 2>&1 &
+      exec nanobot gateway
 
   nanobot-api:
-    container_name: nanobot-api
-    <<: *common-config
-    command:
-      ["serve", "--host", "0.0.0.0", "-w", "/home/nanobot/.nanobot/api-workspace"]
+    image: nanobot:latest
     restart: unless-stopped
+    user: "0:0"
+    working_dir: /app
     depends_on:
       - pocketbase
-    ports:
-      - 127.0.0.1:8900:8900
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 1G
-        reservations:
-          cpus: "0.25"
-          memory: 256M
+      - nanobot
+    volumes:
+      - nanobot-data:/home/nanobot/.nanobot
+    environment:
+      HOME: /home/nanobot
+      XDG_CONFIG_HOME: /home/nanobot/.nanobot/config
+      DASHBOARD_INTERNAL_URL: http://dashboard:3000
+      OAUTH_CLI_KIT_TOKEN_PATH: /home/nanobot/.nanobot/auth/github-copilot.json
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      NANOBOT_API_KEY: ${NANOBOT_API_KEY:-}
+      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD:-}
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      [ -x /home/nanobot/.nanobot/bin/gog ] && ln -sf /home/nanobot/.nanobot/bin/gog /usr/local/bin/gog || true
+      exec nanobot serve --host 0.0.0.0 --verbose
 
   dashboard:
-    container_name: nanobot-dashboard
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: node:20-slim
     restart: unless-stopped
     depends_on:
       - pocketbase
-      - nanobot-gateway
-    ports:
-      - 3000:3000
+      - nanobot-api
+    volumes:
+      - dashboard-build:/app
+      - nanobot-data:/data/.nanobot
     environment:
-      # NEXT_PUBLIC_ vars are baked into the JS bundle at build time.
-      # These must be reachable from the USER'S BROWSER, not from inside Docker.
-      # Override at runtime if your host/ports differ.
-      - NEXT_PUBLIC_POCKETBASE_URL=http://localhost:8090
-      - NEXT_PUBLIC_NANOBOT_WS_URL=ws://localhost:8765
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          cpus: "0.1"
-          memory: 64M
+      POCKETBASE_URL: http://pocketbase:8090
+      NANOBOT_API_URL: http://nanobot-api:8900
+      NEXT_PUBLIC_POCKETBASE_URL: ${NEXT_PUBLIC_POCKETBASE_URL:-http://localhost:8090}
+      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3000}
+      NANOBOT_API_KEY: ${NANOBOT_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      DASHBOARD_REPO_URL: ${DASHBOARD_REPO_URL:-https://github.com/alisoukarieh/nanobot.git}
+      DASHBOARD_REPO_BRANCH: ${DASHBOARD_REPO_BRANCH:-main}
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      set -e
+      mkdir -p /app
+      apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1
+      rm -rf /tmp/repo
+      git clone --depth 1 --branch "$$DASHBOARD_REPO_BRANCH" "$$DASHBOARD_REPO_URL" /tmp/repo
+      # Additive sync: refresh core files, leave (custom)/ instance dirs untouched
+      cp -r /tmp/repo/frontend/. /app/ 2>/dev/null || cp -Rf /tmp/repo/frontend/. /app/
+      rm -rf /tmp/repo
+      cd /app
+      npm install --no-audit --no-fund
+      rm -rf .next
+      npm run build
+      exec npx next start
 
-  nanobot-cli:
-    <<: *common-config
-    profiles:
-      - cli
-    command: ["status"]
-    stdin_open: true
-    tty: true
+volumes:
+  pb-data:
+  nanobot-data:
+  dashboard-build:
