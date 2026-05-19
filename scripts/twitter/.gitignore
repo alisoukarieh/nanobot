@@ -2,4 +2,6 @@
 cookies.json
 tweets.json
 tweets-*.json
+community_*.json
 .venv/
+uv.lock
