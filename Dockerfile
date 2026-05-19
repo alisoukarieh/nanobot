@@ -47,6 +47,15 @@ COPY deploy/gateway.sh deploy/api.sh /usr/local/bin/
 RUN sed -i 's/\r$//' /usr/local/bin/gateway.sh /usr/local/bin/api.sh && \
     chmod +x /usr/local/bin/gateway.sh /usr/local/bin/api.sh
 
+# Twitter/X scrapers — let the agent's `exec` tool fetch tweets without
+# needing twikit on the main package. Pinned to a PR fork because the
+# PyPI version 2.3.3 is broken since 2026-03-18 (X rotated webpack JS).
+COPY scripts/twitter /app/scripts/twitter
+RUN uv pip install --system --no-cache \
+        'twikit @ git+https://github.com/pothitos/twikit.git@patch-1' \
+        'python-dotenv>=1.0' \
+    && chown -R nanobot:nanobot /app/scripts/twitter
+
 USER nanobot
 ENV HOME=/home/nanobot
 

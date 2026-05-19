@@ -1,0 +1,14 @@
+[project]
+name = "twitter-fetch"
+version = "0.0.1"
+description = "Fetch recent tweets from an X/Twitter account without using the paid API."
+requires-python = ">=3.11"
+dependencies = [
+    # twikit 2.3.3 (latest on PyPI) is broken since 2026-03-18: X changed
+    # the ondemand.s.js webpack format and `Couldn't get KEY_BYTE indices`
+    # fires before any login can happen. The fix lives in unmerged PR #410
+    # (pothitos/patch-1), confirmed working in the issue thread. Move back
+    # to a PyPI pin once d60/twikit cuts a release with the fix.
+    "twikit @ git+https://github.com/pothitos/twikit.git@patch-1",
+    "python-dotenv>=1.0",
+]
