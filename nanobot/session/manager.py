@@ -20,6 +20,7 @@ Design notes
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -28,8 +29,43 @@ from typing import Any
 
 from loguru import logger
 
+from nanobot.agent.tools.pocketbase import PocketBaseError
 from nanobot.config.paths import get_legacy_sessions_dir
 from nanobot.utils.helpers import ensure_dir, find_legal_message_start, safe_filename
+
+_PB_LIMIT_RE = re.compile(r"no more than (\d+) character")
+
+
+def _is_field_length_error(e: PocketBaseError) -> bool:
+    """A permanent PB validation error caused by a text field exceeding its max."""
+    return getattr(e, "status", 0) in (400, 413, 422) and "character" in str(e)
+
+
+def _parse_pb_limit(e: PocketBaseError) -> int:
+    m = _PB_LIMIT_RE.search(str(e))
+    return int(m.group(1)) if m else 4000
+
+
+def _truncate_for_pb(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    marker = f"…[truncated {len(text) - limit} chars]"
+    return text[: max(0, limit - len(marker))] + marker
+
+
+def _truncate_record_for_pb(record: dict[str, Any], e: PocketBaseError) -> dict[str, Any]:
+    """Shrink the oversized text fields of a rejected message row so it can land."""
+    limit = _parse_pb_limit(e)
+    out = dict(record)
+    content = out.get("content")
+    if isinstance(content, str) and len(content) > limit:
+        out["content"] = _truncate_for_pb(content, limit)
+    extra = out.get("extra")
+    if isinstance(extra, str) and len(extra) > limit:
+        # Dropping is safer than truncating: a sliced JSON string would fail to
+        # parse on load. Oversized tool metadata is rare and non-essential.
+        out["extra"] = ""
+    return out
 
 
 @dataclass
@@ -224,12 +260,17 @@ class SessionManager:
             page += 1
         return messages
 
-    async def _pb_create_session(self, session: Session) -> None:
-        result = await self._pb.insert_record("sessions", {
+    @staticmethod
+    def _session_row(session: Session, drop_metadata: bool = False) -> dict[str, Any]:
+        return {
             "key": session.key,
             "last_consolidated": session.last_consolidated,
-            "metadata": json.dumps(session.metadata) if session.metadata else "",
-        })
+            "metadata": "" if drop_metadata
+            else (json.dumps(session.metadata) if session.metadata else ""),
+        }
+
+    async def _pb_create_session(self, session: Session) -> None:
+        result = await self._pb.insert_record("sessions", self._session_row(session))
         session._pb_session_id = result.get("id")
 
     async def _pb_save(self, session: Session) -> None:
@@ -246,11 +287,7 @@ class SessionManager:
             if items:
                 session._pb_session_id = items[0]["id"]
             else:
-                created = await self._pb.insert_record("sessions", {
-                    "key": session.key,
-                    "last_consolidated": session.last_consolidated,
-                    "metadata": json.dumps(session.metadata) if session.metadata else "",
-                })
+                created = await self._pb.insert_record("sessions", self._session_row(session))
                 session._pb_session_id = created["id"]
 
         # Position must be monotonic across the whole PB session history,
@@ -261,35 +298,77 @@ class SessionManager:
         # pairing for the provider. Compute from PB's current max.
         next_position = await self._pb_next_position(session._pb_session_id)
 
-        # Insert any new messages
+        # Insert any new messages. Append-only: a message keeps its `_pb_id`
+        # once persisted and is never re-inserted. `_pb_skip` marks a message
+        # PB permanently rejected (e.g. a field cap) even after truncation —
+        # without it we'd re-POST the bad row on every save forever, holing the
+        # history and colliding positions. Transient failures stop the loop so
+        # a later message is never persisted ahead of an unsaved earlier one
+        # (which would mis-order history); they retry, in order, on next save.
         for msg in session.messages:
-            if msg.get("_pb_id"):
+            if msg.get("_pb_id") or msg.get("_pb_skip"):
                 continue
             extras = {k: msg[k] for k in _EXTRA_FIELDS if k in msg}
+            record = {
+                "session": session._pb_session_id,
+                "role": msg.get("role", ""),
+                "content": msg.get("content", ""),
+                "timestamp": msg.get("timestamp", ""),
+                "position": next_position,
+                "extra": json.dumps(extras) if extras else "",
+            }
             try:
-                result = await self._pb.insert_record("messages", {
-                    "session": session._pb_session_id,
-                    "role": msg.get("role", ""),
-                    "content": msg.get("content", ""),
-                    "timestamp": msg.get("timestamp", ""),
-                    "position": next_position,
-                    "extra": json.dumps(extras) if extras else "",
-                })
-                msg["_pb_id"] = result.get("id")
-                next_position += 1
-            except Exception:
-                logger.exception(
-                    "PB: insert message (role={}, position={}) failed for session {}",
-                    msg.get("role"), next_position, session._pb_session_id,
+                result = await self._pb.insert_record("messages", record)
+            except PocketBaseError as e:
+                if _is_field_length_error(e):
+                    try:
+                        result = await self._pb.insert_record(
+                            "messages", _truncate_record_for_pb(record, e)
+                        )
+                    except Exception:
+                        logger.error(
+                            "PB: permanently skipping message (role={}, pos={}) for session {}: {}",
+                            msg.get("role"), next_position, session._pb_session_id, e,
+                        )
+                        msg["_pb_skip"] = True
+                        continue
+                else:
+                    logger.warning(
+                        "PB: insert message (role={}, pos={}) deferred for session {}: {}",
+                        msg.get("role"), next_position, session._pb_session_id, e,
+                    )
+                    break
+            except Exception as e:
+                logger.warning(
+                    "PB: insert message (role={}, pos={}) deferred for session {}: {}",
+                    msg.get("role"), next_position, session._pb_session_id, e,
                 )
+                break
+            msg["_pb_id"] = result.get("id")
+            next_position += 1
 
-        # Update session metadata
+        # Update session metadata (last_consolidated must stay current). If the
+        # metadata blob is over a field cap, store it empty rather than failing
+        # the whole update — losing optional metadata beats losing the cursor.
         try:
-            await self._pb.update_record("sessions", session._pb_session_id, {
-                "key": session.key,
-                "last_consolidated": session.last_consolidated,
-                "metadata": json.dumps(session.metadata) if session.metadata else "",
-            })
+            await self._pb.update_record(
+                "sessions", session._pb_session_id, self._session_row(session)
+            )
+        except PocketBaseError as e:
+            if _is_field_length_error(e):
+                logger.warning(
+                    "PB: session {} metadata too large; storing without it",
+                    session._pb_session_id,
+                )
+                try:
+                    await self._pb.update_record(
+                        "sessions", session._pb_session_id,
+                        self._session_row(session, drop_metadata=True),
+                    )
+                except Exception:
+                    logger.exception("PB: update session row {} failed", session._pb_session_id)
+            else:
+                logger.warning("PB: update session row {} deferred: {}", session._pb_session_id, e)
         except Exception:
             logger.exception("PB: update session row {} failed", session._pb_session_id)
 

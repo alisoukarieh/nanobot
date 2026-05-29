@@ -628,6 +628,8 @@ def serve(
 
     async def on_cleanup(_app):
         await agent_loop.close_mcp()
+        if pb_client is not None:
+            await pb_client.aclose()
 
     api_app.on_startup.append(on_startup)
     api_app.on_cleanup.append(on_cleanup)
@@ -747,6 +749,15 @@ def gateway(
         finally:
             if isinstance(cron_tool, CronTool) and cron_token is not None:
                 cron_tool.reset_cron_context(cron_token)
+
+        # Keep recurring cron sessions bounded (like the heartbeat path) so a
+        # cron:<id> session doesn't grow without bound across runs.
+        try:
+            cron_session = await agent.sessions.get_or_create(f"cron:{job.id}")
+            cron_session.retain_recent_legal_suffix(8)
+            await agent.sessions.save(cron_session)
+        except Exception:
+            logger.exception("Cron: failed to trim session for job {}", job.id)
 
         response = resp.content if resp else ""
 
@@ -879,6 +890,8 @@ def gateway(
             cron.stop()
             agent.stop()
             await channels.stop_all()
+            if pb_client is not None:
+                await pb_client.aclose()
 
     asyncio.run(run())
 

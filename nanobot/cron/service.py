@@ -48,6 +48,18 @@ def _compute_next_run(schedule: CronSchedule, now_ms: int) -> int | None:
     return None
 
 
+def _compute_next_every(schedule: CronSchedule, base_ms: int | None, now_ms: int) -> int | None:
+    """Next fire for an "every" job, anchored to ``base_ms`` (last run, else
+    creation) so a restart doesn't restart the interval countdown. Returns the
+    first multiple of ``every_ms`` strictly after ``now_ms``."""
+    if not schedule.every_ms or schedule.every_ms <= 0:
+        return None
+    if not base_ms or base_ms > now_ms:
+        return now_ms + schedule.every_ms
+    steps = (now_ms - base_ms) // schedule.every_ms + 1
+    return base_ms + steps * schedule.every_ms
+
+
 def _validate_schedule_for_add(schedule: CronSchedule) -> None:
     """Validate schedule fields that would otherwise create non-runnable jobs."""
     if schedule.tz and schedule.kind != "cron":
@@ -66,6 +78,7 @@ class CronService:
     """Service for managing and executing scheduled jobs."""
 
     _MAX_RUN_HISTORY = 20
+    _AT_GRACE_MS = 24 * 60 * 60 * 1000  # fire missed one-shot jobs up to 24h late
 
     def __init__(
         self,
@@ -253,13 +266,46 @@ class CronService:
             self._timer_task = None
 
     def _recompute_next_runs(self) -> None:
-        """Recompute next run times for all enabled jobs."""
+        """Recompute next run times for all enabled jobs (runs on startup).
+
+        Preserves due-but-missed one-shot ("at") jobs so they fire on the next
+        tick (catch-up) instead of being silently dropped when the service was
+        down at their scheduled instant, and anchors "every" jobs to their last
+        run so a restart doesn't restart the interval countdown.
+        """
         if not self._store:
             return
         now = _now_ms()
         for job in self._store.jobs:
-            if job.enabled:
-                job.state.next_run_at_ms = _compute_next_run(job.schedule, now)
+            if not job.enabled:
+                continue
+            sched = job.schedule
+            if sched.kind == "at":
+                if not sched.at_ms:
+                    job.state.next_run_at_ms = None
+                elif sched.at_ms <= now - self._AT_GRACE_MS:
+                    logger.warning(
+                        "Cron: 'at' job '{}' ({}) is over {}h overdue; disabling without firing",
+                        job.name, job.id, self._AT_GRACE_MS // 3_600_000,
+                    )
+                    job.enabled = False
+                    job.state.next_run_at_ms = None
+                    job.state.last_status = "skipped"
+                    job.state.last_error = "missed: overdue beyond grace window"
+                else:
+                    job.state.next_run_at_ms = sched.at_ms
+                    if sched.at_ms <= now:
+                        logger.info(
+                            "Cron: catch-up — 'at' job '{}' ({}) was due during downtime; "
+                            "firing on next tick",
+                            job.name, job.id,
+                        )
+            elif sched.kind == "every":
+                job.state.next_run_at_ms = _compute_next_every(
+                    sched, job.state.last_run_at_ms or job.created_at_ms, now
+                )
+            else:
+                job.state.next_run_at_ms = _compute_next_run(sched, now)
 
     def _get_next_wake_ms(self) -> int | None:
         """Get the earliest next run time across all jobs."""
@@ -270,7 +316,18 @@ class CronService:
         return min(times) if times else None
 
     def _arm_timer(self) -> None:
-        """Schedule the next timer tick."""
+        """Schedule the next timer tick.
+
+        While the timer is actively executing jobs (``_timer_active``),
+        ``self._timer_task`` IS the running ``_on_timer`` coroutine. Cancelling
+        it here — e.g. when ``add_job``/``update_job`` re-arms after a user
+        schedules a reminder mid-run — would raise ``CancelledError`` into the
+        in-flight job, and ``_execute_job`` only catches ``Exception``, so the
+        job would abort half-done. Skip re-arming in that window; ``_on_timer``
+        re-arms itself when the batch finishes and picks up any store changes.
+        """
+        if self._timer_active:
+            return
         if self._timer_task:
             self._timer_task.cancel()
 

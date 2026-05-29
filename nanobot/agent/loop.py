@@ -295,11 +295,16 @@ class AgentLoop:
             from nanobot.agent.tools.pocketbase import PocketBaseClient
             from nanobot.agent.tools.db import DbTool
 
-            client = PocketBaseClient(
-                base_url=self._db_config.url,
-                admin_email=self._db_config.admin_email,
-                admin_password=self._db_config.admin_password,
-            )
+            # Reuse the session manager's pooled client when it points at the
+            # same PocketBase, so we keep a single connection pool (and a single
+            # thing to close) instead of two.
+            client = self.sessions._pb if isinstance(self.sessions._pb, PocketBaseClient) else None
+            if client is None:
+                client = PocketBaseClient(
+                    base_url=self._db_config.url,
+                    admin_email=self._db_config.admin_email,
+                    admin_password=self._db_config.admin_password,
+                )
             self.tools.register(DbTool(client))
 
     async def _connect_mcp(self) -> None:

@@ -1,5 +1,7 @@
 """PocketBase REST API client for the db tool."""
 
+import asyncio
+import random
 from typing import Any
 
 import httpx
@@ -14,31 +16,89 @@ class PocketBaseError(Exception):
         self.status = status
 
 
+# Server-side statuses worth retrying: the request was rejected at/around the
+# edge (overload, restart, gateway) rather than by application validation.
+_RETRY_STATUSES = {429, 502, 503, 504}
+# Connection-phase failures: the request almost certainly never reached the
+# application, so they are safe to retry even for non-idempotent POSTs.
+_CONNECT_EXC = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+# Mid-flight transport failures: safe to retry only for idempotent methods,
+# because a POST insert may have been applied server-side before the failure.
+_READ_EXC = (httpx.ReadTimeout, httpx.WriteTimeout, httpx.RemoteProtocolError)
+
+
 class PocketBaseClient:
-    """Async client for PocketBase REST API (v0.22+)."""
+    """Async client for PocketBase REST API (v0.22+).
+
+    Resilience: a single pooled ``httpx.AsyncClient`` (keep-alive), granular
+    timeouts, and bounded retry-with-backoff on *transient* failures only.
+    Permanent application errors (4xx validation) raise immediately, and after
+    exhausting retries a transient failure still raises — never silently
+    degrades. This keeps the "no silent fallback" session-storage contract:
+    callers see real failures, they just don't see a single PB hiccup.
+    """
 
     _AUTH_PATH = "/api/collections/_superusers/auth-with-password"
     _COLLECTIONS_PATH = "/api/collections"
-    _TIMEOUT = 10.0
+    _MAX_ATTEMPTS = 4
 
     def __init__(self, base_url: str, admin_email: str, admin_password: str):
         self._base_url = base_url.rstrip("/")
         self._email = admin_email
         self._password = admin_password
         self._token: str | None = None
+        self._auth_lock = asyncio.Lock()
+        self._client = httpx.AsyncClient(
+            base_url=self._base_url,
+            timeout=httpx.Timeout(connect=5.0, read=15.0, write=10.0, pool=5.0),
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            # Transport-level retries cover only connection establishment; our
+            # own loop below handles status/read retries with backoff.
+            transport=httpx.AsyncHTTPTransport(retries=2),
+        )
+
+    async def aclose(self) -> None:
+        """Close the shared connection pool. Call on shutdown."""
+        await self._client.aclose()
+
+    async def _backoff(self, attempt: int, retry_after: str | None = None) -> None:
+        delay = min(8.0, 0.25 * (2 ** attempt)) + random.uniform(0.0, 0.25)
+        if retry_after:
+            try:
+                delay = max(delay, float(retry_after))
+            except (TypeError, ValueError):
+                pass
+        await asyncio.sleep(delay)
 
     async def _auth(self) -> str:
-        """Authenticate as admin and cache the token."""
-        async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
-            r = await client.post(
-                f"{self._base_url}{self._AUTH_PATH}",
-                json={"identity": self._email, "password": self._password},
+        """Authenticate as admin and cache the token (transient-retrying)."""
+        async with self._auth_lock:
+            last_exc: Exception | None = None
+            for attempt in range(self._MAX_ATTEMPTS):
+                try:
+                    r = await self._client.post(
+                        self._AUTH_PATH,
+                        json={"identity": self._email, "password": self._password},
+                    )
+                except _CONNECT_EXC + _READ_EXC as e:  # auth is idempotent
+                    last_exc = e
+                else:
+                    if r.status_code in _RETRY_STATUSES and attempt < self._MAX_ATTEMPTS - 1:
+                        await self._backoff(attempt, r.headers.get("Retry-After"))
+                        continue
+                    if r.status_code != 200:
+                        raise PocketBaseError(
+                            f"Authentication failed: {_extract_error(r)}", r.status_code
+                        )
+                    self._token = r.json().get("token", "")
+                    return self._token
+                if attempt < self._MAX_ATTEMPTS - 1:
+                    await self._backoff(attempt)
+            raise PocketBaseError(
+                f"Authentication failed after {self._MAX_ATTEMPTS} attempts: "
+                f"{type(last_exc).__name__ if last_exc else 'unknown'}",
+                0,
             )
-        if r.status_code != 200:
-            detail = _extract_error(r)
-            raise PocketBaseError(f"Authentication failed: {detail}", r.status_code)
-        self._token = r.json().get("token", "")
-        return self._token
 
     async def _request(
         self,
@@ -47,33 +107,68 @@ class PocketBaseClient:
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Make an authenticated request with auto-retry on 401."""
+        """Make an authenticated request.
+
+        Retries transient failures (connection errors always; read/transport
+        errors only for idempotent methods; 429/502/503/504) with jittered
+        backoff, re-auths once on 401, and raises on permanent errors or after
+        exhausting attempts.
+        """
         if not self._token:
             await self._auth()
 
-        for attempt in range(2):
-            headers = {"Authorization": f"Bearer {self._token}"}
-            async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
-                r = await client.request(
-                    method,
-                    f"{self._base_url}{path}",
-                    json=json,
-                    params=params,
-                    headers=headers,
+        method_u = method.upper()
+        # POST creates a record and is NOT idempotent: a read timeout could
+        # mean the insert was applied. Don't retry POST on read/transport
+        # errors — only on connection-phase failures (never reached the app).
+        retry_read = method_u != "POST"
+
+        reauthed = False
+        last_exc: Exception | None = None
+        last_status: int | None = None
+        for attempt in range(self._MAX_ATTEMPTS):
+            retry_after: str | None = None
+            transient = False
+            try:
+                headers = {"Authorization": f"Bearer {self._token}"}
+                r = await self._client.request(
+                    method, path, json=json, params=params, headers=headers
                 )
-            if r.status_code == 401 and attempt == 0:
-                logger.debug("PocketBase token expired, re-authenticating")
-                self._token = None
-                await self._auth()
+            except _CONNECT_EXC as e:
+                last_exc, transient = e, True
+            except _READ_EXC as e:
+                if not retry_read:
+                    raise PocketBaseError(
+                        f"PocketBase {method} {path} failed: {type(e).__name__}", 0
+                    ) from e
+                last_exc, transient = e, True
+            else:
+                if r.status_code == 401 and not reauthed:
+                    reauthed = True
+                    logger.debug("PocketBase token expired, re-authenticating")
+                    self._token = None
+                    await self._auth()
+                    continue
+                if r.status_code in _RETRY_STATUSES:
+                    transient, last_status, retry_after = True, r.status_code, r.headers.get("Retry-After")
+                elif r.status_code >= 400:
+                    raise PocketBaseError(
+                        f"PocketBase {method} {path} failed ({r.status_code}): {_extract_error(r)}",
+                        r.status_code,
+                    )
+                else:
+                    return r.json() if r.content else {}
+
+            if transient and attempt < self._MAX_ATTEMPTS - 1:
+                await self._backoff(attempt, retry_after)
                 continue
-            if r.status_code >= 400:
-                detail = _extract_error(r)
-                raise PocketBaseError(
-                    f"PocketBase {method} {path} failed ({r.status_code}): {detail}",
-                    r.status_code,
-                )
-            return r.json() if r.content else {}
-        return {}  # unreachable, satisfies type checker
+            break
+
+        detail = f"{type(last_exc).__name__}" if last_exc else f"HTTP {last_status}"
+        raise PocketBaseError(
+            f"PocketBase {method} {path} failed after {self._MAX_ATTEMPTS} attempts: {detail}",
+            last_status or 0,
+        )
 
     # ── Collection operations ────────────────────────────────────────
 
