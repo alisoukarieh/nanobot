@@ -147,6 +147,7 @@ class AgentLoop:
         exec_config: ExecToolConfig | None = None,
         cron_service: CronService | None = None,
         db_config: "PocketBaseConfig | None" = None,
+        claude_code_config: "ClaudeCodeConfig | None" = None,
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
         mcp_servers: dict | None = None,
@@ -184,6 +185,7 @@ class AgentLoop:
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self._db_config = db_config
+        self._claude_code_config = claude_code_config
         self.restrict_to_workspace = restrict_to_workspace
         self._start_time = time.time()
         self._last_usage: dict[str, int] = {}
@@ -306,6 +308,28 @@ class AgentLoop:
                     admin_password=self._db_config.admin_password,
                 )
             self.tools.register(DbTool(client))
+        if self._claude_code_config and self._claude_code_config.enable:
+            from pathlib import Path as _Path
+
+            from nanobot.agent.tools.claude_code import ClaudeCodeTool
+
+            cc = self._claude_code_config
+            root = _Path(cc.workspace_root) if cc.workspace_root else (self.workspace / "claude_code")
+            self.tools.register(
+                ClaudeCodeTool(
+                    binary=cc.binary,
+                    workspace_root=root,
+                    max_concurrent=cc.max_concurrent,
+                    permission_mode=cc.permission_mode,
+                    model=cc.model,
+                    timeout=cc.timeout,
+                    extra_args=cc.extra_args,
+                    allowed_env_keys=cc.allowed_env_keys,
+                    send_callback=self.bus.publish_outbound,
+                    progress_interval=cc.progress_interval,
+                    restrict_to_workspace=self.restrict_to_workspace,
+                )
+            )
 
     async def _connect_mcp(self) -> None:
         """Connect to configured MCP servers (one-time, lazy)."""
@@ -331,7 +355,7 @@ class AgentLoop:
 
     def _set_tool_context(self, channel: str, chat_id: str, message_id: str | None = None) -> None:
         """Update context for all tools that need routing info."""
-        for name in ("message", "spawn", "cron"):
+        for name in ("message", "spawn", "cron", "claude_code"):
             if tool := self.tools.get(name):
                 if hasattr(tool, "set_context"):
                     tool.set_context(channel, chat_id, *([message_id] if name == "message" else []))
@@ -607,6 +631,12 @@ class AgentLoop:
         if self._background_tasks:
             await asyncio.gather(*self._background_tasks, return_exceptions=True)
             self._background_tasks.clear()
+        cc = self.tools.get("claude_code")
+        if cc is not None and hasattr(cc, "aclose"):
+            try:
+                await cc.aclose()
+            except Exception:
+                logger.debug("claude_code cleanup error (can be ignored)")
         for name, stack in self._mcp_stacks.items():
             try:
                 await stack.aclose()

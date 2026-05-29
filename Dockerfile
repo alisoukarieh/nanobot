@@ -56,6 +56,14 @@ RUN uv pip install --system --no-cache \
         'python-dotenv>=1.0' \
     && chown -R nanobot:nanobot /app/scripts/twitter
 
+# Optional: Claude Code CLI for the `claude_code` tool. Off by default to keep
+# the image lean; the tool is also disabled in config unless tools.claude_code.enable=true.
+# Enable at build time with --build-arg INSTALL_CLAUDE_CODE=true.
+ARG INSTALL_CLAUDE_CODE=false
+RUN if [ "$INSTALL_CLAUDE_CODE" = "true" ]; then \
+        npm install -g @anthropic-ai/claude-code && npm cache clean --force; \
+    fi
+
 USER nanobot
 ENV HOME=/home/nanobot
 

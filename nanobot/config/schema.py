@@ -187,6 +187,21 @@ class ExecToolConfig(Base):
     sandbox: str = ""  # sandbox backend: "" (none) or "bwrap"
     allowed_env_keys: list[str] = Field(default_factory=list)  # Env var names to pass through to subprocess (e.g. ["GOPATH", "JAVA_HOME"])
 
+class ClaudeCodeConfig(Base):
+    """Claude Code (headless `claude` CLI) tool configuration."""
+
+    enable: bool = False
+    binary: str = "claude"  # path/name of the claude CLI
+    workspace_root: str = ""  # base dir for per-conversation work dirs; defaults to <workspace>/claude_code
+    max_concurrent: int = 2  # cap on simultaneous Claude Code processes across all chats
+    permission_mode: str = "acceptEdits"  # claude --permission-mode: plan|acceptEdits|bypassPermissions
+    model: str = ""  # optional claude --model override
+    timeout: int = 1800  # per-run wall-clock seconds before the run is killed
+    progress_interval: float = 10.0  # min seconds between streamed progress updates
+    extra_args: list[str] = Field(default_factory=list)  # extra flags passed to `claude`
+    allowed_env_keys: list[str] = Field(default_factory=list)  # env vars forwarded to claude (e.g. ["ANTHROPIC_API_KEY"])
+
+
 class MCPServerConfig(Base):
     """MCP server connection configuration (stdio or HTTP)."""
 
@@ -217,6 +232,7 @@ class ToolsConfig(Base):
     mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)
     ssrf_whitelist: list[str] = Field(default_factory=list)  # CIDR ranges to exempt from SSRF blocking (e.g. ["100.64.0.0/10"] for Tailscale)
     db: PocketBaseConfig | None = None  # PocketBase config; db tool only registers when present
+    claude_code: ClaudeCodeConfig = Field(default_factory=ClaudeCodeConfig)  # Claude Code tool (disabled unless enable=true)
 
 
 class Config(BaseSettings):
