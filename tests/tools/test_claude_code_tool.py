@@ -229,6 +229,28 @@ async def test_restrict_to_workspace_scopes_dir(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_subprocess_user_dropped(tmp_path, monkeypatch):
+    cap = {}
+
+    async def fake(*cmd, **kw):
+        cap["user"] = kw.get("user")
+        cap["group"] = kw.get("group")
+        return _FakeProc(_enc(_INIT, _result()))
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake)
+    # Use ids unlikely to exist so resolution takes the bare-uid path and the
+    # test doesn't depend on the host's passwd db.
+    tool = ClaudeCodeTool(
+        workspace_root=tmp_path, send_callback=None, progress_interval=0,
+        subprocess_user="61000", subprocess_group="61000",
+    )
+    tool.set_context("cli", "direct")
+    await tool.execute(action="run", task="x")
+    assert cap["user"] == 61000
+    assert cap["group"] == 61000
+
+
+@pytest.mark.asyncio
 async def test_context_is_captured_per_call(tmp_path, monkeypatch):
     """set_context for different conversations must route to the right workdir/key."""
     _patch_spawn(monkeypatch, _enc(_INIT, _result(session="s-a")))

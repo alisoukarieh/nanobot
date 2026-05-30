@@ -328,6 +328,8 @@ class AgentLoop:
                     send_callback=self.bus.publish_outbound,
                     progress_interval=cc.progress_interval,
                     restrict_to_workspace=self.restrict_to_workspace,
+                    subprocess_user=cc.subprocess_user,
+                    subprocess_group=cc.subprocess_group,
                 )
             )
 

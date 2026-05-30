@@ -200,6 +200,8 @@ class ClaudeCodeConfig(Base):
     progress_interval: float = 10.0  # min seconds between streamed progress updates
     extra_args: list[str] = Field(default_factory=list)  # extra flags passed to `claude`
     allowed_env_keys: list[str] = Field(default_factory=list)  # env vars forwarded to claude (e.g. ["ANTHROPIC_API_KEY"])
+    subprocess_user: str = ""  # run `claude` as this user/uid (drops root; required for bypassPermissions when the container runs as root)
+    subprocess_group: str = ""  # group/gid for the claude subprocess (defaults to the user's primary group)
 
 
 class MCPServerConfig(Base):

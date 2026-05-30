@@ -41,6 +41,37 @@ _MAX_RESULT_CHARS = 3500  # keep the final delivered message chat-friendly
 _STREAM_READ_LIMIT = 16 * 1024 * 1024  # a single stream-json line can be large
 
 
+def _resolve_user(user: str, group: str) -> tuple[int | None, int | None]:
+    """Resolve a user/group name-or-id to numeric (uid, gid), or (None, None).
+
+    When set, the claude subprocess is launched as this user — needed so it can
+    run with bypassPermissions (Claude Code refuses that as root) and as
+    defence-in-depth (the autonomous agent runs unprivileged)."""
+    if not user:
+        return None, None
+    try:
+        import pwd
+
+        rec = pwd.getpwuid(int(user)) if user.isdigit() else pwd.getpwnam(user)
+        uid, gid = rec.pw_uid, rec.pw_gid
+    except Exception:
+        # No passwd entry (or non-Unix): accept a bare uid, default gid to it.
+        if user.isdigit():
+            uid = int(user)
+            gid = int(group) if group.isdigit() else uid
+            return uid, gid
+        logger.warning("claude_code: could not resolve subprocess_user {!r}; running as parent", user)
+        return None, None
+    if group:
+        try:
+            import grp
+
+            gid = grp.getgrgid(int(group)).gr_gid if group.isdigit() else grp.getgrnam(group).gr_gid
+        except Exception:
+            gid = int(group) if group.isdigit() else gid
+    return uid, gid
+
+
 @dataclass
 class _Result:
     session_id: str | None = None
@@ -96,6 +127,8 @@ class ClaudeCodeTool(Tool):
         send_callback: Callable[[OutboundMessage], Awaitable[None]] | None = None,
         progress_interval: float = 10.0,
         restrict_to_workspace: bool = False,
+        subprocess_user: str = "",
+        subprocess_group: str = "",
     ) -> None:
         self._binary = binary
         self._root = Path(workspace_root)
@@ -107,6 +140,7 @@ class ClaudeCodeTool(Tool):
         self._send = send_callback
         self._progress_interval = progress_interval
         self._restrict_to_workspace = restrict_to_workspace
+        self._run_uid, self._run_gid = _resolve_user(subprocess_user, subprocess_group)
 
         self._sem = asyncio.Semaphore(max(1, max_concurrent))
         # Per-conversation state (keyed by "channel:chat_id").
@@ -152,7 +186,15 @@ class ClaudeCodeTool(Tool):
         safe = re.sub(r"[^A-Za-z0-9._-]", "_", conv_key) or "default"
         d = self._root / "work" / safe
         d.mkdir(parents=True, exist_ok=True)
-        return d.resolve()
+        d = d.resolve()
+        # When we drop privileges for the subprocess, the work dir (created by
+        # the parent, often root) must be writable by that user.
+        if self._run_uid is not None:
+            try:
+                os.chown(d, self._run_uid, self._run_gid if self._run_gid is not None else -1)
+            except OSError:
+                logger.debug("claude_code: could not chown workdir {}", d)
+        return d
 
     def _build_env(self) -> dict[str, str]:
         env: dict[str, str] = {}
@@ -312,6 +354,11 @@ class ClaudeCodeTool(Tool):
                 cmd += ["--add-dir", str(workdir)]
             cmd += self._extra_args
 
+            spawn_kw: dict[str, Any] = {}
+            if self._run_uid is not None:
+                spawn_kw["user"] = self._run_uid
+                if self._run_gid is not None:
+                    spawn_kw["group"] = self._run_gid
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,
@@ -320,6 +367,7 @@ class ClaudeCodeTool(Tool):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     limit=_STREAM_READ_LIMIT,
+                    **spawn_kw,
                 )
             except FileNotFoundError:
                 result.error = (
