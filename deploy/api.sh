@@ -7,6 +7,9 @@ set -e
 if [ -x /home/nanobot/.nanobot/bin/gog ]; then
   ln -sf /home/nanobot/.nanobot/bin/gog /usr/local/bin/gog || true
 fi
+if [ -x /home/nanobot/.nanobot/bin/gh ]; then
+  ln -sf /home/nanobot/.nanobot/bin/gh /usr/local/bin/gh || true
+fi
 
 # Ensure the Claude Code workspace exists + is owned by the unprivileged user.
 # The CLI itself is installed by the gateway entrypoint onto the shared volume.

@@ -130,6 +130,9 @@ class ClaudeCodeTool(Tool):
         subprocess_user: str = "",
         subprocess_group: str = "",
         oauth_token: str = "",
+        github_token: str = "",
+        git_user_name: str = "",
+        git_user_email: str = "",
     ) -> None:
         self._binary = binary
         self._root = Path(workspace_root)
@@ -142,7 +145,14 @@ class ClaudeCodeTool(Tool):
         self._progress_interval = progress_interval
         self._restrict_to_workspace = restrict_to_workspace
         self._oauth_token = oauth_token
+        self._github_token = github_token
+        self._git_user_name = git_user_name
+        self._git_user_email = git_user_email
+        self._gitconfig_path = self._root / ".gitconfig"
+        self._gh_config_dir = self._root / ".config" / "gh"
         self._run_uid, self._run_gid = _resolve_user(subprocess_user, subprocess_group)
+        if self._github_token:
+            self._write_gitconfig()
 
         self._sem = asyncio.Semaphore(max(1, max_concurrent))
         # Per-conversation state (keyed by "channel:chat_id").
@@ -198,6 +208,37 @@ class ClaudeCodeTool(Tool):
                 logger.debug("claude_code: could not chown workdir {}", d)
         return d
 
+    def _write_gitconfig(self) -> None:
+        """Write a git global config for the subprocess: commit identity plus the
+        GitHub CLI as the HTTPS credential helper (so clone/push/PR use GH_TOKEN)."""
+        try:
+            self._gh_config_dir.mkdir(parents=True, exist_ok=True)
+            lines: list[str] = []
+            if self._git_user_name or self._git_user_email:
+                lines.append("[user]")
+                if self._git_user_name:
+                    lines.append(f"\tname = {self._git_user_name}")
+                if self._git_user_email:
+                    lines.append(f"\temail = {self._git_user_email}")
+            lines += [
+                '[credential "https://github.com"]',
+                "\thelper = !gh auth git-credential",
+                "[init]",
+                "\tdefaultBranch = main",
+                "[safe]",
+                "\tdirectory = *",
+            ]
+            self._gitconfig_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            if self._run_uid is not None:
+                gid = self._run_gid if self._run_gid is not None else -1
+                for p in (self._gitconfig_path, self._gh_config_dir, self._gh_config_dir.parent):
+                    try:
+                        os.chown(p, self._run_uid, gid)
+                    except OSError:
+                        pass
+        except OSError:
+            logger.warning("claude_code: could not write gitconfig at {}", self._gitconfig_path)
+
     def _build_env(self) -> dict[str, str]:
         env: dict[str, str] = {}
         for k in ("PATH", "HOME", "LANG", "TERM", "NODE_PATH", "SHELL"):
@@ -209,6 +250,12 @@ class ClaudeCodeTool(Tool):
         env["CLAUDE_CONFIG_DIR"] = str(self._root / ".claude")
         if self._oauth_token:
             env["CLAUDE_CODE_OAUTH_TOKEN"] = self._oauth_token
+        if self._github_token:
+            # gh authenticates from GH_TOKEN; git uses `gh auth git-credential`
+            # (configured in the gitconfig below) for HTTPS clone/push/PR.
+            env["GH_TOKEN"] = self._github_token
+            env["GH_CONFIG_DIR"] = str(self._gh_config_dir)
+            env["GIT_CONFIG_GLOBAL"] = str(self._gitconfig_path)
         for k in self._allowed_env_keys:
             v = os.environ.get(k)
             if v is not None:

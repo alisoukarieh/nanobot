@@ -331,6 +331,9 @@ class AgentLoop:
                     subprocess_user=cc.subprocess_user,
                     subprocess_group=cc.subprocess_group,
                     oauth_token=cc.oauth_token,
+                    github_token=cc.github_token,
+                    git_user_name=cc.git_user_name,
+                    git_user_email=cc.git_user_email,
                 )
             )
 

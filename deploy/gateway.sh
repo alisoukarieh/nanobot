@@ -12,6 +12,12 @@ if [ -x /home/nanobot/.nanobot/bin/gog ]; then
   ln -sf /home/nanobot/.nanobot/bin/gog /usr/local/bin/gog || true
 fi
 
+# Put the GitHub CLI on PATH if it was installed onto the volume (used by the
+# claude_code tool for clone/push/PR via `gh auth git-credential`).
+if [ -x /home/nanobot/.nanobot/bin/gh ]; then
+  ln -sf /home/nanobot/.nanobot/bin/gh /usr/local/bin/gh || true
+fi
+
 # Claude Code tool: install the CLI onto the persistent data volume (once) and
 # prepare its per-conversation workspace owned by the unprivileged `nanobot`
 # user (uid 1000), so the tool can run `claude` non-root with bypassPermissions.

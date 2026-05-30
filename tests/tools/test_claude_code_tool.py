@@ -262,6 +262,27 @@ def test_oauth_token_absent_when_unset(tmp_path):
     assert "CLAUDE_CODE_OAUTH_TOKEN" not in tool._build_env()
 
 
+def test_github_token_injected_and_gitconfig_written(tmp_path):
+    tool = ClaudeCodeTool(
+        workspace_root=tmp_path, send_callback=None,
+        github_token="gho_test", git_user_name="Ali", git_user_email="a@b.c",
+    )
+    env = tool._build_env()
+    assert env["GH_TOKEN"] == "gho_test"
+    assert env["GH_CONFIG_DIR"].endswith("/.config/gh")
+    assert env["GIT_CONFIG_GLOBAL"].endswith("/.gitconfig")
+    cfg = (tmp_path / ".gitconfig").read_text()
+    assert "gh auth git-credential" in cfg
+    assert "Ali" in cfg and "a@b.c" in cfg
+
+
+def test_no_github_env_when_unset(tmp_path):
+    tool = ClaudeCodeTool(workspace_root=tmp_path, send_callback=None)
+    env = tool._build_env()
+    assert "GH_TOKEN" not in env
+    assert not (tmp_path / ".gitconfig").exists()
+
+
 @pytest.mark.asyncio
 async def test_context_is_captured_per_call(tmp_path, monkeypatch):
     """set_context for different conversations must route to the right workdir/key."""

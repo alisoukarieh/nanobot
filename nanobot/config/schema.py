@@ -203,6 +203,9 @@ class ClaudeCodeConfig(Base):
     subprocess_user: str = ""  # run `claude` as this user/uid (drops root; required for bypassPermissions when the container runs as root)
     subprocess_group: str = ""  # group/gid for the claude subprocess (defaults to the user's primary group)
     oauth_token: str = ""  # Claude subscription OAuth token (from `claude setup-token`); injected as CLAUDE_CODE_OAUTH_TOKEN
+    github_token: str = ""  # GitHub token; injected as GH_TOKEN and used as the git credential (clone/push/PR via gh)
+    git_user_name: str = ""  # git commit author name for Claude Code's commits
+    git_user_email: str = ""  # git commit author email for Claude Code's commits
 
 
 class MCPServerConfig(Base):
