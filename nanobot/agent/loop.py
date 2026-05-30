@@ -330,6 +330,7 @@ class AgentLoop:
                     restrict_to_workspace=self.restrict_to_workspace,
                     subprocess_user=cc.subprocess_user,
                     subprocess_group=cc.subprocess_group,
+                    oauth_token=cc.oauth_token,
                 )
             )
 

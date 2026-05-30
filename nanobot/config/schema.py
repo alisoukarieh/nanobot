@@ -202,6 +202,7 @@ class ClaudeCodeConfig(Base):
     allowed_env_keys: list[str] = Field(default_factory=list)  # env vars forwarded to claude (e.g. ["ANTHROPIC_API_KEY"])
     subprocess_user: str = ""  # run `claude` as this user/uid (drops root; required for bypassPermissions when the container runs as root)
     subprocess_group: str = ""  # group/gid for the claude subprocess (defaults to the user's primary group)
+    oauth_token: str = ""  # Claude subscription OAuth token (from `claude setup-token`); injected as CLAUDE_CODE_OAUTH_TOKEN
 
 
 class MCPServerConfig(Base):

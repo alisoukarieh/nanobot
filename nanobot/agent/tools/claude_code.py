@@ -129,6 +129,7 @@ class ClaudeCodeTool(Tool):
         restrict_to_workspace: bool = False,
         subprocess_user: str = "",
         subprocess_group: str = "",
+        oauth_token: str = "",
     ) -> None:
         self._binary = binary
         self._root = Path(workspace_root)
@@ -140,6 +141,7 @@ class ClaudeCodeTool(Tool):
         self._send = send_callback
         self._progress_interval = progress_interval
         self._restrict_to_workspace = restrict_to_workspace
+        self._oauth_token = oauth_token
         self._run_uid, self._run_gid = _resolve_user(subprocess_user, subprocess_group)
 
         self._sem = asyncio.Semaphore(max(1, max_concurrent))
@@ -205,7 +207,8 @@ class ClaudeCodeTool(Tool):
         # Persist Claude Code's own session store on the data volume so
         # --resume survives container restarts.
         env["CLAUDE_CONFIG_DIR"] = str(self._root / ".claude")
-        env["CI"] = "1"  # discourage any interactive prompting
+        if self._oauth_token:
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = self._oauth_token
         for k in self._allowed_env_keys:
             v = os.environ.get(k)
             if v is not None:

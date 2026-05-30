@@ -250,6 +250,18 @@ async def test_subprocess_user_dropped(tmp_path, monkeypatch):
     assert cap["group"] == 61000
 
 
+def test_oauth_token_injected_into_env(tmp_path):
+    tool = ClaudeCodeTool(workspace_root=tmp_path, send_callback=None, oauth_token="sk-ant-oat01-XYZ")
+    env = tool._build_env()
+    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat01-XYZ"
+    assert env["CLAUDE_CONFIG_DIR"].endswith("/.claude")
+
+
+def test_oauth_token_absent_when_unset(tmp_path):
+    tool = ClaudeCodeTool(workspace_root=tmp_path, send_callback=None)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in tool._build_env()
+
+
 @pytest.mark.asyncio
 async def test_context_is_captured_per_call(tmp_path, monkeypatch):
     """set_context for different conversations must route to the right workdir/key."""
